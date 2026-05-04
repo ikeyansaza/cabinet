@@ -30,30 +30,20 @@
   const lbSpFeatures    = document.getElementById('lb-species-features');
   const lbSpDescription = document.getElementById('lb-species-description');
 
-  /* ── load photos.json + species.json (並列) ── */
-  Promise.all([
-    fetch('photos.json').then(r => {
-      if (!r.ok) throw new Error(`photos.json: HTTP ${r.status}`);
-      return r.json();
-    }),
-    fetch('species.json')
-      .then(r => {
-        if (!r.ok) throw new Error(`species.json: HTTP ${r.status}`);
-        return r.json();
-      })
-      .catch(err => {
-        console.warn(`[gallery] species.json を読み込めませんでした: ${err.message}。図鑑情報なしで起動します。`);
-        return {};
-      })
-  ])
-    .then(([photos, species]) => {
-      allPhotos  = photos;
-      speciesMap = species;
+  /* ── load photos.json + species.json via Tauri ── */
+  import('./tauri.js').then(async ({ invoke }) => {
+    try {
+      const [photos, species] = await Promise.all([
+        invoke('read_photos_json'),
+        invoke('read_species_json'),
+      ]);
+      allPhotos  = photos || [];
+      speciesMap = species || {};
       init();
-    })
-    .catch(err => {
+    } catch (err) {
       grid.innerHTML = `<div class="loading">error: ${err.message}</div>`;
-    });
+    }
+  });
 
   /* ── init ── */
   function init() {
