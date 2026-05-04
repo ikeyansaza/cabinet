@@ -383,11 +383,15 @@ button.tag.active {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
 }
 
 .lb-species[hidden] { display: none; }
+
+/* species と photo-info の境界線。species が表示されているときだけ */
+.lb-species:not([hidden]) + .lb-photo-info {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
 
 .lb-species-header {
   display: flex;
