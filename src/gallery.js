@@ -29,21 +29,69 @@
   const lbSpMeta        = document.getElementById('lb-species-meta');
   const lbSpFeatures    = document.getElementById('lb-species-features');
   const lbSpDescription = document.getElementById('lb-species-description');
+  const picker        = document.getElementById('picker');
+  const pickerBtn     = document.getElementById('picker-btn');
 
-  /* ── load photos.json + species.json via Tauri ── */
-  import('./tauri.js').then(async ({ invoke }) => {
+  /* ── boot: フォルダ未設定なら picker、設定済なら load ── */
+  import('./tauri.js').then(async (T) => {
+    const dir = await T.invoke('get_photos_dir');
+    if (dir) {
+      await loadAll(T);
+    } else {
+      showPicker(T);
+    }
+  });
+
+  async function loadAll(T) {
     try {
       const [photos, species] = await Promise.all([
-        invoke('read_photos_json'),
-        invoke('read_species_json'),
+        T.invoke('read_photos_json'),
+        T.invoke('read_species_json'),
       ]);
       allPhotos  = photos || [];
       speciesMap = species || {};
+      picker.hidden = true;
+      grid.hidden = false;
       init();
     } catch (err) {
       grid.innerHTML = `<div class="loading">error: ${err.message}</div>`;
     }
-  });
+  }
+
+  function showPicker(T) {
+    picker.hidden = false;
+    grid.hidden = true;
+
+    pickerBtn.addEventListener('click', async () => {
+      const path = await T.pickFolder();
+      if (path) await chooseFolder(T, path);
+    });
+
+    // 視覚フィードバックは HTML5 で、実パスは tauri://drag-drop イベントから
+    picker.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      picker.classList.add('dragover');
+    });
+    picker.addEventListener('dragleave', () => {
+      picker.classList.remove('dragover');
+    });
+
+    T.listen('tauri://drag-drop', async (event) => {
+      picker.classList.remove('dragover');
+      const paths = event.payload?.paths || [];
+      const path = paths[0];
+      if (path) await chooseFolder(T, path);
+    });
+  }
+
+  async function chooseFolder(T, path) {
+    try {
+      await T.invoke('set_photos_dir', { path });
+      await loadAll(T);
+    } catch (err) {
+      alert(`フォルダ設定エラー: ${err}`);
+    }
+  }
 
   /* ── init ── */
   function init() {
