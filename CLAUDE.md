@@ -30,7 +30,8 @@ album/
 
 **絶対に変えないこと：**
 
-- フォント: `IBM Plex Mono` のみ。weight 300 / 400 / 500 のみ
+- フォント: 全体は `IBM Plex Mono` のみ。weight 300 / 400 / 500 のみ。
+  例外: 図鑑ブロックの本文（`.lb-species-features`, `.lb-species-description`）は、日本語の長文可読性を優先して system sans-serif（`--font-body-jp`）に切り替える。これ以外で別フォントを使わない
 - 背景: `#0a0a0a`（`--bg`）
 - アクセント: `#44aaff`（`--accent`）1色のみ
 - ボタン: 透明背景 + ボーダーのみ。塗りは使わない

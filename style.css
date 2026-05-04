@@ -379,6 +379,14 @@ button.tag.active {
 }
 
 /* ── lightbox: species encyclopedia ── */
+
+/* 図鑑ブロック内の本文（features/description）用フォントスタック。
+   日本語をモノスペースで読ませると可読性が悪いため、ここだけ
+   system sans-serif を使う。ヘッダー（name_ja/en, meta）は mono のまま。 */
+:root {
+  --font-body-jp: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', sans-serif;
+}
+
 .lb-species {
   display: flex;
   flex-direction: column;
@@ -429,6 +437,7 @@ button.tag.active {
 }
 
 .lb-species-features li {
+  font-family: var(--font-body-jp);
   font-size: 13px;
   font-weight: 400;
   color: var(--text-hi);
@@ -445,6 +454,7 @@ button.tag.active {
 }
 
 .lb-species-description {
+  font-family: var(--font-body-jp);
   font-size: 15px;
   font-weight: 400;
   color: var(--text-hi);
