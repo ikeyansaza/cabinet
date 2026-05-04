@@ -141,6 +141,11 @@
     await T.listen('menu:rescan', async () => {
       await rescan(T);
     });
+    await T.listen('photos-updated', async () => {
+      const photos = await T.invoke('read_photos_json');
+      allPhotos = photos || [];
+      applyFilter(activeTag);
+    });
   }
 
   /* ── init ── */

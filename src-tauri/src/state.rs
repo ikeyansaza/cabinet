@@ -1,14 +1,19 @@
 use parking_lot::Mutex;
 use std::path::PathBuf;
+use std::sync::Arc;
+use crate::watcher::PhotoWatcher;
 
-#[derive(Default)]
 pub struct AppState {
     photos_dir: Mutex<Option<PathBuf>>,
+    pub watcher: Arc<PhotoWatcher>,
 }
 
 impl AppState {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            photos_dir: Mutex::new(None),
+            watcher: Arc::new(PhotoWatcher::new()),
+        }
     }
 
     pub fn photos_dir(&self) -> Option<PathBuf> {

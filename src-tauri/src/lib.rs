@@ -1,6 +1,7 @@
 mod state;
 mod exif;
 mod scan;
+mod watcher;
 
 use std::path::PathBuf;
 use tauri::{Emitter, Manager, State};
@@ -26,11 +27,13 @@ fn set_photos_dir(
     if !path_buf.is_dir() {
         return Err(format!("not a directory: {path}"));
     }
-    state.set_photos_dir(Some(path_buf));
+    state.set_photos_dir(Some(path_buf.clone()));
 
     let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
     store.set(STORE_KEY_PHOTOS_DIR, serde_json::Value::String(path));
     store.save().map_err(|e| e.to_string())?;
+
+    state.watcher.watch(app, path_buf)?;
     Ok(())
 }
 
@@ -107,7 +110,8 @@ pub fn run() {
             if let Some(serde_json::Value::String(path)) = store.get(STORE_KEY_PHOTOS_DIR) {
                 let path_buf = PathBuf::from(&path);
                 if path_buf.is_dir() {
-                    app.state::<AppState>().set_photos_dir(Some(path_buf));
+                    app.state::<AppState>().set_photos_dir(Some(path_buf.clone()));
+                    let _ = app.state::<AppState>().watcher.watch(app.handle().clone(), path_buf);
                 }
             }
 
