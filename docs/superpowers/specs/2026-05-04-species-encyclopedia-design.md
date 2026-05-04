@@ -119,7 +119,9 @@
 
 ## XSS 対策
 
-`species.json` の値を DOM に挿入する際は、既存の `esc()` を必ず通す。`features` の各要素も同様。
+`species.json` の値を DOM に挿入する際は **`textContent`** を使う（`esc()` 不要）。`textContent` は値を HTML として解釈しないため、`<script>` などのタグを含む文字列もそのままテキストとして扱われ XSS を防げる。`features` の各 `<li>` も `textContent` で書き込む。
+
+`<ul>` の中身を再描画前にクリアする目的での `innerHTML = ''` は安全（外部由来の文字列を含まない代入）。
 
 ## 検証（自動テストなし、手動確認）
 
