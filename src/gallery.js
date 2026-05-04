@@ -10,6 +10,21 @@
   let current    = 0;
   let activeTag  = 'all';
 
+  /* ── tauri 連携ヘルパ ── */
+  let tauriApi = null;
+  async function tauri() {
+    if (!tauriApi) tauriApi = await import('./tauri.js');
+    return tauriApi;
+  }
+
+  async function photoUrl(file) {
+    const T = await tauri();
+    const dir = await T.invoke('get_photos_dir');
+    if (!dir) return `photos/${file}`; // フォールバック
+    const abs = `${dir}/${file}`.replace(/\\/g, '/');
+    return T.convertFileSrc(abs);
+  }
+
   /* ── elements ── */
   const grid      = document.getElementById('grid');
   const filters   = document.getElementById('filters');
@@ -29,31 +44,109 @@
   const lbSpMeta        = document.getElementById('lb-species-meta');
   const lbSpFeatures    = document.getElementById('lb-species-features');
   const lbSpDescription = document.getElementById('lb-species-description');
+  const picker        = document.getElementById('picker');
+  const pickerBtn     = document.getElementById('picker-btn');
 
-  /* ── load photos.json + species.json (並列) ── */
-  Promise.all([
-    fetch('photos.json').then(r => {
-      if (!r.ok) throw new Error(`photos.json: HTTP ${r.status}`);
-      return r.json();
-    }),
-    fetch('species.json')
-      .then(r => {
-        if (!r.ok) throw new Error(`species.json: HTTP ${r.status}`);
-        return r.json();
-      })
-      .catch(err => {
-        console.warn(`[gallery] species.json を読み込めませんでした: ${err.message}。図鑑情報なしで起動します。`);
-        return {};
-      })
-  ])
-    .then(([photos, species]) => {
-      allPhotos  = photos;
-      speciesMap = species;
+  /* ── boot: フォルダ未設定なら picker、設定済なら load ── */
+  import('./tauri.js').then(async (T) => {
+    await setupMenuListeners(T);
+    const dir = await T.invoke('get_photos_dir');
+    if (dir) {
+      await loadAll(T);
+    } else {
+      showPicker(T);
+    }
+  });
+
+  async function loadAll(T) {
+    try {
+      const [photos, species] = await Promise.all([
+        T.invoke('read_photos_json'),
+        T.invoke('read_species_json'),
+      ]);
+      allPhotos  = photos || [];
+      speciesMap = species || {};
+      picker.hidden = true;
+      grid.hidden = false;
       init();
-    })
-    .catch(err => {
+    } catch (err) {
       grid.innerHTML = `<div class="loading">error: ${err.message}</div>`;
+    }
+  }
+
+  async function rescan(T) {
+    try {
+      const photos = await T.invoke('rescan');
+      allPhotos = photos || [];
+      applyFilter(activeTag);
+    } catch (err) {
+      console.warn(`[album] rescan 失敗: ${err}`);
+    }
+  }
+
+  let pickerWired = false;
+  let pickerInFlight = false;
+
+  function showPicker(T) {
+    picker.hidden = false;
+    grid.hidden = true;
+
+    if (pickerWired) return;
+    pickerWired = true;
+
+    pickerBtn.addEventListener('click', async () => {
+      if (pickerInFlight) return;
+      const path = await T.pickFolder();
+      if (path) await chooseFolder(T, path);
     });
+
+    // 視覚フィードバックは HTML5 で、実パスは tauri://drag-drop イベントから
+    picker.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      picker.classList.add('dragover');
+    });
+    picker.addEventListener('dragleave', () => {
+      picker.classList.remove('dragover');
+    });
+
+    T.listen('tauri://drag-drop', async (event) => {
+      picker.classList.remove('dragover');
+      if (pickerInFlight) return;
+      const paths = event.payload?.paths || [];
+      const path = paths[0];
+      if (path) await chooseFolder(T, path);
+    });
+  }
+
+  async function chooseFolder(T, path) {
+    if (pickerInFlight) return;
+    pickerInFlight = true;
+    pickerBtn.disabled = true;
+    try {
+      await T.invoke('set_photos_dir', { path });
+      await loadAll(T);
+    } catch (err) {
+      alert(`フォルダ設定エラー: ${err}`);
+    } finally {
+      pickerInFlight = false;
+      pickerBtn.disabled = false;
+    }
+  }
+
+  async function setupMenuListeners(T) {
+    await T.listen('menu:open_folder', async () => {
+      const path = await T.pickFolder();
+      if (path) await chooseFolder(T, path);
+    });
+    await T.listen('menu:rescan', async () => {
+      await rescan(T);
+    });
+    await T.listen('photos-updated', async () => {
+      const photos = await T.invoke('read_photos_json');
+      allPhotos = photos || [];
+      applyFilter(activeTag);
+    });
+  }
 
   /* ── init ── */
   function init() {
@@ -121,7 +214,7 @@
       img.className = 'loading';
       img.alt = cardTitle;
       img.loading = 'lazy';
-      img.src = `photos/${photo.file}`;
+      photoUrl(photo.file).then(url => { img.src = url; });
       img.addEventListener('load',  () => img.classList.replace('loading', 'loaded'));
       img.addEventListener('error', () => img.classList.replace('loading', 'loaded'));
 
@@ -147,7 +240,7 @@
     current = i;
     const p = visible[i];
 
-    lbImg.src = `photos/${p.file}`;
+    photoUrl(p.file).then(url => { lbImg.src = url; });
     lbImg.alt = p.title || speciesMap[p.species]?.name_ja || p.file;
 
     if (p.title) {
