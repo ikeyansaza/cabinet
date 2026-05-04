@@ -1,7 +1,3 @@
-# 写真ファイルは git 管理外
-photos/*
-!photos/.gitkeep
-
 # OS
 .DS_Store
 Thumbs.db
