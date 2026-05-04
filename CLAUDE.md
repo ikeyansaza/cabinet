@@ -2,8 +2,10 @@
 
 ## プロジェクト概要
 
-一眼レフで撮った動物写真の個人用ギャラリー。
-純静的（HTML / CSS / JS のみ）。ローカル限定で公開はしない。
+一眼レフで撮った動物写真の個人用デスクトップギャラリー（macOS / Tauri 2）。
+WebView 内で従来の純静的 HTML/CSS/JS が動き、Rust 側がフォトフォルダの
+EXIF 抽出・JSON 読み書き・ファイルウォッチャーを担当する。
+公開はせず、個人 Mac でのみ動かす運用。
 
 ---
 
@@ -11,18 +13,39 @@
 
 ```
 album/
-├── index.html        # エントリーポイント。構造のみ、ロジックは gallery.js へ
-├── style.css         # デザイントークンと全スタイル。mokomoko デザインシステム準拠
-├── gallery.js        # 写真読み込み・フィルター・ライトボックス。IIFE でスコープ隔離
-├── photos.json       # 写真メタデータ。手動編集 or gen_photos.py で生成
-├── species.json      # 種別の図鑑情報。手動編集
-├── scripts/
-│   └── gen_photos.py # photos/ を走査して EXIF から photos.json を生成
-├── photos/           # 実写真ファイル置き場（git 管理外 / .gitignore 済み）
-│   └── .gitkeep
-├── .gitignore
+├── package.json                # frontend の npm 依存
+├── src-tauri/                  # Rust バックエンド
+│   ├── src/
+│   │   ├── lib.rs              # エントリ・コマンド・プラグイン setup
+│   │   ├── state.rs            # AppState（photos_dir, watcher）
+│   │   ├── exif.rs             # EXIF 抽出（kamadak-exif）
+│   │   ├── scan.rs             # フォルダ走査 + photos.json マージ
+│   │   └── watcher.rs          # ファイルウォッチャー（notify, 500ms デバウンス）
+│   ├── Cargo.toml
+│   ├── tauri.conf.json
+│   └── capabilities/default.json
+├── src/                        # frontend（WebView で読まれる）
+│   ├── index.html
+│   ├── gallery.js
+│   ├── tauri.js                # Tauri API 薄ラッパ
+│   └── style.css
+├── scripts/gen_photos.py       # CLI 用に維持。Tauri 化後の primary は rescan コマンド
+├── docs/
 └── README.md
 ```
+
+---
+
+## データの置き場所
+
+| 種類 | 場所 |
+|---|---|
+| アプリのフロント・バックエンドのコード | このリポジトリ |
+| 写真ファイル（JPEG 等） | ユーザが選んだ任意のフォルダ（例 `~/Pictures/album/`） |
+| `photos.json` / `species.json` | 上記フォトフォルダの中 |
+| アプリ状態（最後のフォルダ・ウィンドウ位置） | `~/Library/Application Support/com.naofumiikeda.album/` |
+
+写真フォルダごと外付け HDD にコピーすればメタデータも一緒に持ち運べる。
 
 ---
 
@@ -142,12 +165,23 @@ python scripts/gen_photos.py --photos-dir /path/to/photos --dry-run
 
 ## ローカル開発
 
+開発サーバ起動：
+
 ```bash
-python -m http.server 8000
-# → http://localhost:8000
+npm install         # 初回のみ
+npm run tauri dev
 ```
 
-`file://` で直接開くと `fetch('photos.json')` が CORS エラーになるので必ずサーバー経由で。
+初回起動時はフォトフォルダ（例 `~/Pictures/album/`）を picker から選択する。
+
+リリースビルド：
+
+```bash
+npm run tauri build
+# → src-tauri/target/release/bundle/macos/album.app
+```
+
+生成された `.app` を `/Applications/` にコピー。署名なしなので初回起動は右クリック → 開く で Gatekeeper を許可。
 
 ---
 
@@ -160,3 +194,5 @@ python -m http.server 8000
 - `gallery.js` にグローバル変数を追加しない（IIFE 内に収める）
 - `index.html` にインラインスタイルや `<script>` ブロックを追加しない
 - `species.json` の値で塗り（背景色）や新色を導入しない（mokomoko デザインシステム遵守）
+- 写真ファイルや photos.json をリポジトリに含めない（個人データなので）
+- macOS 以外への配布を想定しない（YAGNI）

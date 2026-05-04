@@ -1,98 +1,67 @@
 # album
 
-動物写真の個人用ギャラリー。mokomoko デザインシステムベースの静的サイトをローカルで動かす。公開はしない。
+動物写真の個人用デスクトップギャラリー（macOS / Tauri 2）。
+公開せず、自分の Mac でだけ動かす想定。
 
-## 構成
+## 必要なもの
 
-```
-album/
-├── index.html          # メインページ
-├── style.css           # mokomoko デザイン
-├── gallery.js          # グリッド・フィルター・ライトボックス
-├── photos.json         # 写真メタデータ
-├── scripts/
-│   └── gen_photos.py   # photos.json 自動生成スクリプト
-└── photos/
-    └── (写真ファイル — git 管理外)
-```
+- macOS
+- Node 20+ / npm
+- Rust（rustup 推奨）
+- Xcode Command Line Tools
 
-## セットアップ
+未インストールなら：
 
-### 1. 写真を配置する
-
-```
-photos/
-├── sika_deer_01.jpg
-├── kingfisher_01.jpg
-└── ...
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+xcode-select --install
 ```
 
-ファイル名は `種名_連番.jpg` 形式を推奨。タグが自動推定されます。
+## 開発
 
-### 2. photos.json を生成する
+```bash
+npm install            # 初回のみ
+npm run tauri dev
+```
+
+初回起動時にフォトフォルダ（例 `~/Pictures/album/`）を picker から選択する。
+そのフォルダに写真と `photos.json` / `species.json` を置く運用。
+新しい写真をフォルダに追加すると 500ms デバウンスで自動再スキャン。
+
+## ビルド（リリース版）
+
+```bash
+npm run tauri build
+# → src-tauri/target/release/bundle/macos/album.app
+```
+
+生成された `album.app` を `/Applications/` にコピー。
+署名なしなので初回起動は右クリック → 開く で Gatekeeper を許可。
+
+## ショートカット
+
+| キー | 動作 |
+|---|---|
+| Cmd+O | フォルダ選択ダイアログ |
+| Cmd+R | 手動 rescan |
+| Cmd+W | ウィンドウを閉じる |
+| Cmd+Q | アプリ終了 |
+| ← / → | ライトボックス内でナビ |
+| Esc | ライトボックスを閉じる |
+
+## CLI: gen_photos.py（任意）
+
+Tauri アプリの内蔵 rescan が `photos.json` を生成・更新するので、
+通常は不要。CLI で生成したい場合のみ：
 
 ```bash
 pip install piexif pillow
-python scripts/gen_photos.py
+python scripts/gen_photos.py --photos-dir ~/Pictures/album/
 ```
 
-EXIF（カメラ・レンズ・f値・ISO・撮影日）を自動取得します。
+詳細は `python scripts/gen_photos.py --help`。
 
-#### オプション
+## 設計ドキュメント
 
-| オプション | 説明 | デフォルト |
-|---|---|---|
-| `--photos-dir` | 写真フォルダのパス | `./photos` |
-| `--output` | 出力先 JSON | `./photos.json` |
-| `--dry-run` | 書き込まずに標準出力へ | — |
-
-例:
-
-```bash
-python scripts/gen_photos.py --photos-dir /Volumes/Photos/animals --dry-run
-```
-
-### 3. photos.json を手動で編集する（任意）
-
-```json
-[
-  {
-    "file":   "kingfisher_01.jpg",
-    "title":  "KINGFISHER",
-    "tags":   ["bird"],
-    "date":   "2024-05-20",
-    "camera": "α7IV",
-    "lens":   "200-600mm f/5.6-6.3 G",
-    "exif":   "f/6.3 · 1/2000s · ISO 3200"
-  }
-]
-```
-
-`tags` に使えるキーワードは自由。フィルターボタンが自動生成されます。
-
-### 4. ローカル確認
-
-```bash
-# Python 3
-python -m http.server 8000
-
-# Node.js
-npx serve .
-```
-
-→ <http://localhost:8000>
-
-## 写真のタグ自動推定ルール
-
-`gen_photos.py` はファイル名のキーワードからタグを推定します。
-
-| タグ | キーワード例 |
-|---|---|
-| mammal | deer, monkey, fox, cat, dog, sheep ... |
-| bird | heron, kingfisher, eagle, owl, duck ... |
-| insect | beetle, butterfly, dragonfly, cicada ... |
-| reptile | snake, lizard, gecko, turtle, frog ... |
-| aquatic | fish, carp, salmon, octopus, crab ... |
-
-対応しないキーワードには `other` が付与されます。
-`scripts/gen_photos.py` の `TAG_RULES` に追記してください。
+- `docs/superpowers/specs/` に設計
+- `docs/superpowers/plans/` に実装プラン
