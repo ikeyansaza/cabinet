@@ -32,9 +32,20 @@ fn set_photos_dir(
     Ok(())
 }
 
+#[tauri::command]
+async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog().file().pick_folder(move |folder| {
+        let _ = tx.send(folder.map(|p| p.to_string()));
+    });
+    rx.await.ok().flatten()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -61,6 +72,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_photos_dir,
             set_photos_dir,
+            pick_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
