@@ -27,12 +27,13 @@ fn set_photos_dir(
     if !path_buf.is_dir() {
         return Err(format!("not a directory: {path}"));
     }
-    state.set_photos_dir(Some(path_buf.clone()));
 
+    // 永続化を先に。失敗したら state はまだ古いまま、再起動しても最後の有効値が残る。
     let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
     store.set(STORE_KEY_PHOTOS_DIR, serde_json::Value::String(path));
     store.save().map_err(|e| e.to_string())?;
 
+    state.set_photos_dir(Some(path_buf.clone()));
     state.watcher.watch(app, path_buf)?;
     Ok(())
 }
@@ -112,7 +113,9 @@ pub fn run() {
                 let path_buf = PathBuf::from(&path);
                 if path_buf.is_dir() {
                     app.state::<AppState>().set_photos_dir(Some(path_buf.clone()));
-                    let _ = app.state::<AppState>().watcher.watch(app.handle().clone(), path_buf);
+                    if let Err(e) = app.state::<AppState>().watcher.watch(app.handle().clone(), path_buf) {
+                        eprintln!("[album] failed to start watcher on launch: {e}");
+                    }
                 }
             }
 

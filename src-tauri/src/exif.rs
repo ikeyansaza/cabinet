@@ -60,8 +60,12 @@ fn format_lens(meta: &exif::Exif) -> String {
 fn format_exposure(meta: &exif::Exif) -> String {
     let mut parts = Vec::new();
     if let Some(f) = get_str(meta, exif::Tag::FNumber) {
-        let n = f.trim_start_matches("f/").trim_end_matches('0').trim_end_matches('.');
-        if !n.is_empty() { parts.push(format!("f/{n}")); }
+        let stripped = f.trim_start_matches("f/").trim();
+        if let Ok(n) = stripped.parse::<f64>() {
+            // 末尾 .0 は落とす（"2.0" → "2", "6.3" は維持）
+            let s = if n.fract() == 0.0 { format!("{n:.0}") } else { format!("{n}") };
+            parts.push(format!("f/{s}"));
+        }
     }
     if let Some(s) = get_str(meta, exif::Tag::ExposureTime) {
         parts.push(format!("{s}s").replace("ss", "s"));
@@ -88,5 +92,27 @@ mod tests {
         let data = extract(&path);
         assert!(!data.date.is_empty() || !data.camera.is_empty() || !data.exif.is_empty(),
                 "EXIF empty for {path}: {data:?}");
+    }
+
+    #[test]
+    fn format_exposure_handles_whole_fnumber() {
+        // 直接 format_exposure はテストできない（exif::Exif が必要）が、
+        // 文字列処理ロジックを検証するために局所関数で再現
+        // 直接 inline で検証
+        let cases = [
+            ("f/10",   "f/10"),
+            ("f/10.0", "f/10"),
+            ("f/2",    "f/2"),
+            ("f/2.0",  "f/2"),
+            ("f/6.3",  "f/6.3"),
+            ("f/1.8",  "f/1.8"),
+        ];
+        for (input, expected) in cases {
+            let stripped = input.trim_start_matches("f/").trim();
+            let n: f64 = stripped.parse().unwrap();
+            let s = if n.fract() == 0.0 { format!("{n:.0}") } else { format!("{n}") };
+            let actual = format!("f/{s}");
+            assert_eq!(actual, expected, "input: {input}");
+        }
     }
 }

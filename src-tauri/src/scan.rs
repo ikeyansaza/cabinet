@@ -36,7 +36,9 @@ pub fn scan_and_merge(dir: &Path) -> Vec<Value> {
 
     let path = dir.join("photos.json");
     let json = serde_json::to_string_pretty(&entries).unwrap_or_else(|_| "[]".into());
-    let _ = std::fs::write(&path, json + "\n");
+    if let Err(e) = std::fs::write(&path, json + "\n") {
+        eprintln!("[album] failed to write {}: {e}", path.display());
+    }
 
     entries
 }
