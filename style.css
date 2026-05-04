@@ -377,3 +377,73 @@ button.tag.active {
   color: var(--dim);
   letter-spacing: .06em;
 }
+
+/* ── lightbox: species encyclopedia ── */
+.lb-species {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.lb-species[hidden] { display: none; }
+
+.lb-species-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lb-species-name-ja {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-hi);
+  letter-spacing: .04em;
+}
+
+.lb-species-name-en {
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: .08em;
+}
+
+.lb-species-meta {
+  font-size: 10px;
+  color: var(--dim);
+  line-height: 1.7;
+  letter-spacing: .04em;
+}
+
+.lb-species-features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.lb-species-features li {
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.6;
+  padding-left: 12px;
+  position: relative;
+}
+
+.lb-species-features li::before {
+  content: '·';
+  position: absolute;
+  left: 2px;
+  color: var(--accent);
+}
+
+.lb-species-description {
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.8;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  white-space: pre-wrap;
+}
