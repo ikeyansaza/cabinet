@@ -73,6 +73,16 @@
     }
   }
 
+  async function rescan(T) {
+    try {
+      const photos = await T.invoke('rescan');
+      allPhotos = photos || [];
+      applyFilter(activeTag);
+    } catch (err) {
+      console.warn(`[album] rescan 失敗: ${err}`);
+    }
+  }
+
   let pickerWired = false;
   let pickerInFlight = false;
 

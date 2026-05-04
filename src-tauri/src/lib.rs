@@ -77,6 +77,15 @@ async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
     rx.await.ok().flatten()
 }
 
+#[tauri::command]
+fn rescan(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let Some(dir) = state.photos_dir() else {
+        return Err("photos_dir is not set".into());
+    };
+    let entries = scan::scan_and_merge(&dir);
+    Ok(serde_json::Value::Array(entries))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -110,6 +119,7 @@ pub fn run() {
             pick_folder,
             read_photos_json,
             read_species_json,
+            rescan,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
