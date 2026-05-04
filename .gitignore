@@ -16,3 +16,10 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Tauri build artifacts
+src-tauri/target/
+
+# Node
+node_modules/
+npm-debug.log
