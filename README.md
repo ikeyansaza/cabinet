@@ -1,6 +1,6 @@
 # album
 
-動物写真ギャラリー。mokomoko デザインシステムベースの静的サイト。
+動物写真の個人用ギャラリー。mokomoko デザインシステムベースの静的サイトをローカルで動かす。公開はしない。
 
 ## 構成
 
@@ -81,15 +81,6 @@ npx serve .
 ```
 
 → <http://localhost:8000>
-
-## Cloudflare Pages へのデプロイ
-
-1. GitHub にリポジトリを push する（`photos/` は `.gitignore` 済み）
-2. Cloudflare Pages でリポジトリを接続
-3. ビルド設定:
-   - **Build command**: *(空欄)*
-   - **Build output directory**: `/`
-4. 写真ファイルは Cloudflare Pages の **Assets** や R2 で管理、または `photos.json` の `file` を CDN URL に変更する
 
 ## 写真のタグ自動推定ルール
 

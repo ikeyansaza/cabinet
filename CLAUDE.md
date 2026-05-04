@@ -2,8 +2,8 @@
 
 ## プロジェクト概要
 
-一眼レフで撮った動物写真のギャラリーサイト。
-純静的（HTML / CSS / JS のみ）。Cloudflare Pages にデプロイ。
+一眼レフで撮った動物写真の個人用ギャラリー。
+純静的（HTML / CSS / JS のみ）。ローカル限定で公開はしない。
 
 ---
 
@@ -148,19 +148,6 @@ python -m http.server 8000
 ```
 
 `file://` で直接開くと `fetch('photos.json')` が CORS エラーになるので必ずサーバー経由で。
-
----
-
-## Cloudflare Pages デプロイ設定
-
-| 項目 | 値 |
-|---|---|
-| Build command | *(空欄)* |
-| Build output directory | `/` |
-| Root directory | *(空欄)* |
-
-`photos/` は `.gitignore` 済みなので git には含まれない。
-写真ファイルの配信方法は別途検討（Cloudflare R2 / 外部 CDN など）。
 
 ---
 
