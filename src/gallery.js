@@ -58,11 +58,18 @@
     }
   }
 
+  let pickerWired = false;
+  let pickerInFlight = false;
+
   function showPicker(T) {
     picker.hidden = false;
     grid.hidden = true;
 
+    if (pickerWired) return;
+    pickerWired = true;
+
     pickerBtn.addEventListener('click', async () => {
+      if (pickerInFlight) return;
       const path = await T.pickFolder();
       if (path) await chooseFolder(T, path);
     });
@@ -78,6 +85,7 @@
 
     T.listen('tauri://drag-drop', async (event) => {
       picker.classList.remove('dragover');
+      if (pickerInFlight) return;
       const paths = event.payload?.paths || [];
       const path = paths[0];
       if (path) await chooseFolder(T, path);
@@ -85,11 +93,17 @@
   }
 
   async function chooseFolder(T, path) {
+    if (pickerInFlight) return;
+    pickerInFlight = true;
+    pickerBtn.disabled = true;
     try {
       await T.invoke('set_photos_dir', { path });
       await loadAll(T);
     } catch (err) {
       alert(`フォルダ設定エラー: ${err}`);
+    } finally {
+      pickerInFlight = false;
+      pickerBtn.disabled = false;
     }
   }
 
