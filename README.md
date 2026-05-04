@@ -1,4 +1,4 @@
-# moko.album
+# album
 
 動物写真ギャラリー。mokomoko デザインシステムベースの静的サイト。
 
@@ -47,6 +47,7 @@ EXIF（カメラ・レンズ・f値・ISO・撮影日）を自動取得します
 | `--dry-run` | 書き込まずに標準出力へ | — |
 
 例:
+
 ```bash
 python scripts/gen_photos.py --photos-dir /Volumes/Photos/animals --dry-run
 ```
@@ -79,7 +80,7 @@ python -m http.server 8000
 npx serve .
 ```
 
-→ http://localhost:8000
+→ <http://localhost:8000>
 
 ## Cloudflare Pages へのデプロイ
 

@@ -1,78 +1,81 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>moko.album</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>album</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-<div class="page">
+  <div class="page">
 
-  <header>
-    <div class="logo">moko<span class="accent">.</span>album</div>
-    <div class="header-right">
-      <span class="meta" id="header-meta">—</span>
-    </div>
-  </header>
-
-  <div class="filters" id="filters">
-    <span class="filter-label">filter</span>
-    <button class="tag active" data-tag="all">all</button>
-    <!-- tags injected by gallery.js -->
-  </div>
-
-  <div class="status-bar">
-    <div class="status">
-      <span class="dot"></span>
-      <b id="count">—</b> photos
-    </div>
-    <div class="status dim">click to open · ← → to navigate · esc to close</div>
-  </div>
-
-  <div class="grid" id="grid">
-    <div class="loading">loading photos.json ...</div>
-  </div>
-
-</div>
-
-<!-- lightbox -->
-<div class="lb-overlay" id="lb" role="dialog" aria-modal="true" aria-label="photo viewer">
-  <div class="lb-box">
-    <div class="lb-content">
-      <div class="lb-img-wrap" id="lb-img-wrap">
-        <img id="lb-img" src="" alt="" draggable="false">
+    <header>
+      <div class="logo">album</div>
+      <div class="header-right">
+        <span class="meta" id="header-meta">—</span>
       </div>
-      <div class="lb-body">
-        <div class="lb-species" id="lb-species" hidden>
-          <div class="lb-species-header">
-            <div class="lb-species-name-ja" id="lb-species-name-ja"></div>
-            <div class="lb-species-name-en" id="lb-species-name-en"></div>
+    </header>
+
+    <div class="filters" id="filters">
+      <span class="filter-label">filter</span>
+      <button class="tag active" data-tag="all">all</button>
+      <!-- tags injected by gallery.js -->
+    </div>
+
+    <div class="status-bar">
+      <div class="status">
+        <span class="dot"></span>
+        <b id="count">—</b> photos
+      </div>
+      <div class="status dim">click to open · ← → to navigate · esc to close</div>
+    </div>
+
+    <div class="grid" id="grid">
+      <div class="loading">loading photos.json ...</div>
+    </div>
+
+  </div>
+
+  <!-- lightbox -->
+  <div class="lb-overlay" id="lb" role="dialog" aria-modal="true" aria-label="photo viewer">
+    <div class="lb-box">
+      <div class="lb-content">
+        <div class="lb-img-wrap" id="lb-img-wrap">
+          <img id="lb-img" src="" alt="" draggable="false">
+        </div>
+        <div class="lb-body">
+          <div class="lb-species" id="lb-species" hidden>
+            <div class="lb-species-header">
+              <div class="lb-species-name-ja" id="lb-species-name-ja"></div>
+              <div class="lb-species-name-en" id="lb-species-name-en"></div>
+            </div>
+            <div class="lb-species-meta" id="lb-species-meta"></div>
+            <ul class="lb-species-features" id="lb-species-features"></ul>
+            <div class="lb-species-description" id="lb-species-description"></div>
           </div>
-          <div class="lb-species-meta" id="lb-species-meta"></div>
-          <ul class="lb-species-features" id="lb-species-features"></ul>
-          <div class="lb-species-description" id="lb-species-description"></div>
-        </div>
-        <div class="lb-photo-info">
-          <div class="lb-title" id="lb-title" hidden></div>
-          <div class="lb-tags" id="lb-tags" hidden></div>
-          <div class="lb-exif" id="lb-exif"></div>
+          <div class="lb-photo-info">
+            <div class="lb-title" id="lb-title" hidden></div>
+            <div class="lb-tags" id="lb-tags" hidden></div>
+            <div class="lb-exif" id="lb-exif"></div>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="lb-nav">
-      <span class="lb-close" id="lb-close" tabindex="0">[ close ]</span>
-      <div class="lb-arrows">
-        <button id="lb-prev" aria-label="previous photo">← prev</button>
-        <button id="lb-next" aria-label="next photo">next →</button>
+      <div class="lb-nav">
+        <span class="lb-close" id="lb-close" tabindex="0">[ close ]</span>
+        <div class="lb-arrows">
+          <button id="lb-prev" aria-label="previous photo">← prev</button>
+          <button id="lb-next" aria-label="next photo">next →</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<script src="gallery.js"></script>
+  <script src="gallery.js"></script>
 </body>
+
 </html>

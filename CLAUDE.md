@@ -1,4 +1,4 @@
-# CLAUDE.md — moko.album
+# CLAUDE.md — album
 
 ## プロジェクト概要
 

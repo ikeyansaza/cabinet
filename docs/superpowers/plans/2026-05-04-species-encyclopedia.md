@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** moko.album のライトボックスに、写真の被写体（種）の図鑑情報を表示する。`species.json` を新設し、`photos.json` の各エントリは `species` キーで紐づける。
+**Goal:** album のライトボックスに、写真の被写体（種）の図鑑情報を表示する。`species.json` を新設し、`photos.json` の各エントリは `species` キーで紐づける。
 
 **Architecture:** 純静的サイト（HTML/CSS/JS のみ）。`gallery.js` の起動時に `photos.json` と `species.json` を並列 fetch し、ライトボックス表示時に該当する種があれば図鑑ブロックを描画する。`species` フィールド・`species.json` ともにオプトインで、無くても既存挙動は変わらない。
 
@@ -32,6 +32,7 @@
 このプロジェクトには自動テストフレームワークが無い。ユーザの CLAUDE.md は TDD を推奨しているが、テスト基盤を新設するのは YAGNI（写真ギャラリーに分不相応）。代替として、各タスクでは **「検証シナリオを先に決め、実装後にそれを満たすか確認する」** という TDD の精神を保つ。
 
 各タスクは以下の構造：
+
 1. 検証シナリオを書き出す（成功条件）
 2. 実装する
 3. ローカル http サーバ + ブラウザで検証
@@ -55,9 +56,11 @@ python -m http.server 8000
 ## Task 1: species.json 雛形を作成
 
 **Files:**
+
 - Create: `species.json`
 
 検証シナリオ：
+
 - `http://localhost:8000/species.json` にアクセスして JSON が返る
 - 中身に `kingfisher` キーがあり、すべての規定フィールドを持つ
 
@@ -111,9 +114,11 @@ key は photos.json の species フィールドと一致させる。"
 ## Task 2: index.html に図鑑ブロック用の DOM コンテナを追加
 
 **Files:**
+
 - Modify: `index.html` （ライトボックス内）
 
 検証シナリオ：
+
 - ブラウザの DevTools で `#lb-species` 要素が DOM に存在する
 - 既存写真（`species` 無し）でライトボックスを開いても、ビジュアル上の変化は無い（中身が空のままの想定）
 
@@ -155,6 +160,7 @@ key は photos.json の species フィールドと一致させる。"
 ```
 
 ポイント：
+
 - `#lb-species` は `hidden` 属性付きで初期化（CSS の `display: none` と同等。JS で外す）
 - 既存の `lb-title` / `lb-tags` / `lb-exif` の id はそのまま（gallery.js が参照しているため）
 
@@ -179,9 +185,11 @@ git commit -m "ライトボックスに図鑑ブロックの空コンテナを�
 ## Task 3: style.css にライトボックスの横並びレイアウトを追加（デスクトップ）
 
 **Files:**
+
 - Modify: `style.css` （ライトボックス関連セクション）
 
 検証シナリオ：
+
 - デスクトップ幅（≥768px）でライトボックスを開くと、画像と情報パネルが **左右に並ぶ**
 - モバイル幅（<768px）では、画像の **下に情報パネルがスタック**
 - 既存の lb-body 内コンテンツは縦に積まれる（`#lb-photo-info` と `#lb-species` が縦に並ぶ）
@@ -453,6 +461,7 @@ snippet 単位で個別に置き換えるのが安全。`.lb-overlay` は触ら�
 ```
 
 変更点まとめ：
+
 - `.lb-box` を 1100px に拡大、内部スクロールは下位パネルで処理
 - `.lb-content` を新設し、≥768px で flex-row に
 - `.lb-img-wrap` は ≥768px で 60% 幅、区切り線が右側に
@@ -485,9 +494,11 @@ lb-content ラッパの外に出して常に最下段に固定。
 ## Task 4: style.css に図鑑ブロックのスタイルを追加
 
 **Files:**
+
 - Modify: `style.css` （末尾に追加）
 
 検証シナリオ：
+
 - 図鑑ブロックを `hidden` 属性を一時的に外して開発確認すると、既存トークン（`--text-hi`, `--text`, `--border`, `--accent`, `--dim`）のみで構成されたミニマルなレイアウトが表示される
 - 塗り（`background`）は使われていない
 - フォントは IBM Plex Mono のまま
@@ -572,6 +583,7 @@ lb-content ラッパの外に出して常に最下段に固定。
 ```
 
 ポイント：
+
 - 全て既存トークンのみ。新色なし。
 - 塗りなし、ボーダーと余白のみで構造化（mokomoko 哲学）
 - 箇条書きの `·` をアクセント色で（既存トークンの再利用）
@@ -612,9 +624,11 @@ description は white-space: pre-wrap で改行を保持。"
 ## Task 5: gallery.js — species.json の並列読み込みとエラーハンドリング
 
 **Files:**
+
 - Modify: `gallery.js`
 
 検証シナリオ：
+
 - 起動時に Console で `photos.json` と `species.json` の両方が並列に取得される（Network タブで確認）
 - `species.json` の中身がモジュールスコープの変数 `speciesMap` に保持される（ブレイクポイントで確認）
 - `species.json` を一時リネームして 404 にすると、`console.warn` が出るが、ギャラリーは正常に表示される
@@ -666,6 +680,7 @@ description は white-space: pre-wrap で改行を保持。"
 ```
 
 ポイント：
+
 - 内側の `species.json` 用 `.catch` は species のエラーだけを握り潰す（photos のエラーは外側でハンドル）
 - species エラー時は空オブジェクトで続行
 - photos エラー時は従来どおり grid にエラー表示
@@ -689,6 +704,7 @@ mv species.json species.json.bak
 ブラウザを再読み込み。
 
 期待値：
+
 - Network タブで `species.json` が 404
 - Console に `[gallery] species.json を読み込めませんでした: species.json: HTTP 404。...` という警告
 - ギャラリーは正常に表示される（既存写真 2 枚）
@@ -715,9 +731,11 @@ species.json が 404 やパースエラーでも握り潰して空辞書で続�
 ## Task 6: gallery.js — 図鑑ブロックの描画ロジックと openLB 連携
 
 **Files:**
+
 - Modify: `gallery.js`
 
 検証シナリオ：
+
 - 写真の `species` フィールドに `species.json` のキーと一致する値（例: `"kingfisher"`）を一時的に設定すると、ライトボックスを開いた時に図鑑ブロックが表示される
 - 表示内容は species.json の `name_ja` / `name_en` / `habitat` / `size` / `features` / `description` を反映している
 - `species` フィールドが無い写真ではブロックは hidden のまま（既存挙動と同じ）
@@ -786,6 +804,7 @@ species.json が 404 やパースエラーでも握り潰して空辞書で続�
 ```
 
 ポイント：
+
 - `textContent` を使うので XSS 対策は自動（esc を別途呼ぶ必要なし）
 - 各サブ要素も値が無ければ hidden（区切り線が連続するのを防ぐ）
 
@@ -836,6 +855,7 @@ species.json が 404 やパースエラーでも握り潰して空辞書で続�
 ブラウザを再読み込みし、最初の写真をクリック。
 
 期待値：
+
 - ライトボックス右パネル下部にカワセミの図鑑ブロックが表示
 - name_ja: カワセミ / name_en: Common Kingfisher
 - meta: 河川・湖沼の岸辺 · 全長 17cm
@@ -851,6 +871,7 @@ species.json が 404 やパースエラーでも握り潰して空辞書で続�
 ブラウザリロード → 最初の写真をクリック。
 
 期待値：
+
 - 図鑑ブロックは hidden（表示されない）
 - Console に `[gallery] species "nonexistent_xyz" は species.json に未定義です。` という警告
 
@@ -867,6 +888,7 @@ species.json が 404 やパースエラーでも握り潰して空辞書で続�
 `photos.json` に再度 `"species": "kingfisher"` を一時追加して写真を開く。
 
 期待値：
+
 - 説明文がそのまま文字列として表示される（`<script>` を含む）
 - `alert` は実行されない
 - DOM Inspector で見ると、`<script>` タグはテキストノードとして扱われている
@@ -890,9 +912,11 @@ git commit -m "ライトボックスに図鑑ブロックの描画を実装
 ## Task 7: CLAUDE.md にスキーマを追記
 
 **Files:**
+
 - Modify: `CLAUDE.md`
 
 検証シナリオ：
+
 - `photos.json` のスキーマ表に `species` フィールドが追記されている
 - 新しい節 `species.json スキーマ` が追加され、フィールド一覧と例が載っている
 - 「やってはいけないこと」と既存ルールに矛盾しない
