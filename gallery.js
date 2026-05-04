@@ -143,6 +143,7 @@
 
   /* ── lightbox ── */
   function openLB(i) {
+    const wasAlreadyOpen = lb.classList.contains('open');
     current = i;
     const p = visible[i];
 
@@ -177,7 +178,8 @@
 
     updateCounter();
     lb.classList.add('open');
-    lbClose.focus();
+    // 初回オープン時のみ close へフォーカス。prev/next ナビ中はフォーカスを奪わない
+    if (!wasAlreadyOpen) lbClose.focus();
   }
 
   /* ── species (encyclopedia) block ── */
