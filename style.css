@@ -308,14 +308,12 @@ button.tag.active {
   font-weight: 500;
   color: var(--text-hi);
   letter-spacing: .06em;
-  margin-bottom: 8px;
 }
 
 .lb-tags {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
 }
 
 .lb-tag {
