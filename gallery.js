@@ -4,10 +4,11 @@
   'use strict';
 
   /* ── state ── */
-  let allPhotos = [];
-  let visible   = [];
-  let current   = 0;
-  let activeTag = 'all';
+  let allPhotos  = [];
+  let speciesMap = {};
+  let visible    = [];
+  let current    = 0;
+  let activeTag  = 'all';
 
   /* ── elements ── */
   const grid      = document.getElementById('grid');
@@ -23,14 +24,25 @@
   const lbPrev    = document.getElementById('lb-prev');
   const lbNext    = document.getElementById('lb-next');
 
-  /* ── load photos.json ── */
-  fetch('photos.json')
-    .then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  /* ── load photos.json + species.json (並列) ── */
+  Promise.all([
+    fetch('photos.json').then(r => {
+      if (!r.ok) throw new Error(`photos.json: HTTP ${r.status}`);
       return r.json();
-    })
-    .then(data => {
-      allPhotos = data;
+    }),
+    fetch('species.json')
+      .then(r => {
+        if (!r.ok) throw new Error(`species.json: HTTP ${r.status}`);
+        return r.json();
+      })
+      .catch(err => {
+        console.warn(`[gallery] species.json を読み込めませんでした: ${err.message}。図鑑情報なしで起動します。`);
+        return {};
+      })
+  ])
+    .then(([photos, species]) => {
+      allPhotos  = photos;
+      speciesMap = species;
       init();
     })
     .catch(err => {
