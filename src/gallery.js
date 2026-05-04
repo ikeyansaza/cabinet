@@ -10,6 +10,21 @@
   let current    = 0;
   let activeTag  = 'all';
 
+  /* ── tauri 連携ヘルパ ── */
+  let tauriApi = null;
+  async function tauri() {
+    if (!tauriApi) tauriApi = await import('./tauri.js');
+    return tauriApi;
+  }
+
+  async function photoUrl(file) {
+    const T = await tauri();
+    const dir = await T.invoke('get_photos_dir');
+    if (!dir) return `photos/${file}`; // フォールバック
+    const abs = `${dir}/${file}`.replace(/\\/g, '/');
+    return T.convertFileSrc(abs);
+  }
+
   /* ── elements ── */
   const grid      = document.getElementById('grid');
   const filters   = document.getElementById('filters');
@@ -173,7 +188,7 @@
       img.className = 'loading';
       img.alt = cardTitle;
       img.loading = 'lazy';
-      img.src = `photos/${photo.file}`;
+      photoUrl(photo.file).then(url => { img.src = url; });
       img.addEventListener('load',  () => img.classList.replace('loading', 'loaded'));
       img.addEventListener('error', () => img.classList.replace('loading', 'loaded'));
 
@@ -199,7 +214,7 @@
     current = i;
     const p = visible[i];
 
-    lbImg.src = `photos/${p.file}`;
+    photoUrl(p.file).then(url => { lbImg.src = url; });
     lbImg.alt = p.title || speciesMap[p.species]?.name_ja || p.file;
 
     if (p.title) {
