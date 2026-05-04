@@ -49,6 +49,7 @@
 
   /* ── boot: フォルダ未設定なら picker、設定済なら load ── */
   import('./tauri.js').then(async (T) => {
+    await setupMenuListeners(T);
     const dir = await T.invoke('get_photos_dir');
     if (dir) {
       await loadAll(T);
@@ -130,6 +131,16 @@
       pickerInFlight = false;
       pickerBtn.disabled = false;
     }
+  }
+
+  async function setupMenuListeners(T) {
+    await T.listen('menu:open_folder', async () => {
+      const path = await T.pickFolder();
+      if (path) await chooseFolder(T, path);
+    });
+    await T.listen('menu:rescan', async () => {
+      await rescan(T);
+    });
   }
 
   /* ── init ── */

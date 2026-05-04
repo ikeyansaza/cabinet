@@ -3,7 +3,7 @@ mod exif;
 mod scan;
 
 use std::path::PathBuf;
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_store::StoreExt;
 
 use state::AppState;
@@ -110,6 +110,53 @@ pub fn run() {
                     app.state::<AppState>().set_photos_dir(Some(path_buf));
                 }
             }
+
+            // システムメニュー
+            use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+
+            let app_name = "album";
+            let app_menu = Submenu::with_items(
+                app,
+                app_name,
+                true,
+                &[
+                    &PredefinedMenuItem::about(app, Some(app_name), None)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &PredefinedMenuItem::hide(app, None)?,
+                    &PredefinedMenuItem::hide_others(app, None)?,
+                    &PredefinedMenuItem::show_all(app, None)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &PredefinedMenuItem::quit(app, None)?,
+                ],
+            )?;
+
+            let open_folder = MenuItem::with_id(app, "open_folder", "Open Folder…", true, Some("CmdOrCtrl+O"))?;
+            let rescan_item = MenuItem::with_id(app, "rescan", "Rescan", true, Some("CmdOrCtrl+R"))?;
+            let close_window = PredefinedMenuItem::close_window(app, None)?;
+
+            let file_menu = Submenu::with_items(
+                app,
+                "File",
+                true,
+                &[&open_folder, &rescan_item, &PredefinedMenuItem::separator(app)?, &close_window],
+            )?;
+
+            let menu = Menu::with_items(app, &[&app_menu, &file_menu])?;
+            app.set_menu(menu)?;
+
+            // メニューイベント
+            app.on_menu_event(move |app, event| {
+                let id = event.id().0.as_str();
+                match id {
+                    "open_folder" => {
+                        let _ = app.emit("menu:open_folder", ());
+                    }
+                    "rescan" => {
+                        let _ = app.emit("menu:rescan", ());
+                    }
+                    _ => {}
+                }
+            });
 
             Ok(())
         })
