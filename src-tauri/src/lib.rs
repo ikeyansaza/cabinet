@@ -32,6 +32,39 @@ fn set_photos_dir(
     Ok(())
 }
 
+fn read_json_file<T: for<'de> serde::Deserialize<'de> + Default>(
+    dir: Option<PathBuf>,
+    filename: &str,
+) -> T {
+    let Some(dir) = dir else { return T::default(); };
+    let path = dir.join(filename);
+    let Ok(text) = std::fs::read_to_string(&path) else { return T::default(); };
+    serde_json::from_str(&text).unwrap_or_else(|e| {
+        eprintln!("[album] {filename} JSON parse error: {e}");
+        T::default()
+    })
+}
+
+#[tauri::command]
+fn read_photos_json(state: State<'_, AppState>) -> serde_json::Value {
+    let photos: serde_json::Value = read_json_file(state.photos_dir(), "photos.json");
+    if photos.is_array() {
+        photos
+    } else {
+        serde_json::Value::Array(vec![])
+    }
+}
+
+#[tauri::command]
+fn read_species_json(state: State<'_, AppState>) -> serde_json::Value {
+    let species: serde_json::Value = read_json_file(state.photos_dir(), "species.json");
+    if species.is_object() {
+        species
+    } else {
+        serde_json::Value::Object(serde_json::Map::new())
+    }
+}
+
 #[tauri::command]
 async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
     use tauri_plugin_dialog::DialogExt;
@@ -73,6 +106,8 @@ pub fn run() {
             get_photos_dir,
             set_photos_dir,
             pick_folder,
+            read_photos_json,
+            read_species_json,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
