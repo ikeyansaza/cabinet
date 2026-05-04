@@ -1,4 +1,5 @@
 mod state;
+mod exif;
 
 use std::path::PathBuf;
 use tauri::{Manager, State};
