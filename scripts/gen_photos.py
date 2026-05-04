@@ -132,11 +132,18 @@ def guess_tags(filename: str) -> list[str]:
     for pattern, tag in TAG_RULES:
         if re.search(pattern, name) and tag not in tags:
             tags.append(tag)
-    return tags or ["other"]
+    return tags
+
+# 機械的なファイル名（カメラ採番）はタイトル化しない
+GENERIC_NAME_RE = re.compile(r'^(IMG|PXL|DSC|DSCN|DSCF|P\d|MVI)[\s_\-]', re.IGNORECASE)
 
 def guess_title(filename: str) -> str:
-    """ファイル名 → 表示タイトル (例: grey_heron_01.jpg → GREY HERON)"""
+    """ファイル名 → 表示タイトル (例: grey_heron_01.jpg → GREY HERON)
+    IMG_5621.JPG / PXL_20241117_xxx.jpg のようなカメラ採番ファイル名は空文字を返す。
+    """
     stem = Path(filename).stem
+    if GENERIC_NAME_RE.match(stem) or stem.replace('_', '').replace('-', '').isdigit():
+        return ""
     # 末尾の _01 _02 などを除去
     stem = re.sub(r'[_\-]\d+$', '', stem)
     return stem.replace("_", " ").replace("-", " ").upper()
