@@ -1,0 +1,18 @@
+# 写真ファイルは git 管理外
+photos/*
+!photos/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Python (gen_photos.py 関連)
+__pycache__/
+*.pyc
+.venv/
+venv/
