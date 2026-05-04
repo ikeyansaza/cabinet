@@ -15,6 +15,7 @@ album/
 ├── style.css         # デザイントークンと全スタイル。mokomoko デザインシステム準拠
 ├── gallery.js        # 写真読み込み・フィルター・ライトボックス。IIFE でスコープ隔離
 ├── photos.json       # 写真メタデータ。手動編集 or gen_photos.py で生成
+├── species.json      # 種別の図鑑情報。手動編集
 ├── scripts/
 │   └── gen_photos.py # photos/ を走査して EXIF から photos.json を生成
 ├── photos/           # 実写真ファイル置き場（git 管理外 / .gitignore 済み）
@@ -58,20 +59,49 @@ album/
 ```json
 [
   {
-    "file":   "kingfisher_01.jpg",   // photos/ 以下のファイル名（必須）
-    "title":  "KINGFISHER",          // 大文字表記（必須）
-    "tags":   ["bird"],              // フィルター用タグ（必須・配列）
-    "date":   "2024-05-20",          // 撮影日 YYYY-MM-DD（任意）
-    "camera": "α7IV",               // カメラ名（任意）
-    "lens":   "200-600mm f/5.6-6.3 G", // レンズ名（任意）
-    "exif":   "f/6.3 · 1/2000s · ISO 3200" // 露出情報（任意）
+    "file":    "kingfisher_01.jpg",   // photos/ 以下のファイル名（必須）
+    "title":   "KINGFISHER",          // 大文字表記（必須）
+    "tags":    ["bird"],              // フィルター用タグ（必須・配列）
+    "species": "kingfisher",          // species.json のキー（任意）
+    "date":    "2024-05-20",          // 撮影日 YYYY-MM-DD（任意）
+    "camera":  "α7IV",               // カメラ名（任意）
+    "lens":    "200-600mm f/5.6-6.3 G", // レンズ名（任意）
+    "exif":    "f/6.3 · 1/2000s · ISO 3200" // 露出情報（任意）
   }
 ]
 ```
 
 - `file` と `title` と `tags` は必須
 - `tags` の値は自由。gallery.js がフィルターボタンを自動生成する
+- `species` は任意。値は `species.json` のキーと一致させる。一致するとライトボックスに図鑑情報が出る
 - 区切り文字は ` · `（スペース + 中点 + スペース）で統一
+
+---
+
+## species.json スキーマ
+
+種 ID をキーとした辞書。`photos.json` の `species` フィールドの値と一致させる。
+
+```json
+{
+  "kingfisher": {
+    "name_ja": "カワセミ",                     // 和名（任意）
+    "name_en": "Common Kingfisher",          // 英名（任意）
+    "habitat": "河川・湖沼の岸辺",              // 生息環境（任意）
+    "size":    "全長 17cm",                  // サイズ（任意・自由記述）
+    "features": [                            // 識別ポイント（任意・配列・推奨 3〜7 項目）
+      "光沢のある青緑の背面と橙色の腹",
+      "水面上をホバリングしてから飛び込む独特の捕食"
+    ],
+    "description": "「渓流の宝石」と呼ばれる..." // 自由文（任意・複数行可）
+  }
+}
+```
+
+- 全フィールド任意。書かなければライトボックスで該当パートが省略される
+- `features` は配列。1 項目あたり 1 行で表示される
+- `description` は `white-space: pre-wrap` で改行が保持される
+- `species.json` 自体が無くてもギャラリーは動作する（warn のみ）
 
 ---
 
@@ -138,3 +168,4 @@ python -m http.server 8000
 - `photos/` を git 管理に含めない
 - `gallery.js` にグローバル変数を追加しない（IIFE 内に収める）
 - `index.html` にインラインスタイルや `<script>` ブロックを追加しない
+- `species.json` の値で塗り（背景色）や新色を導入しない（mokomoko デザインシステム遵守）

@@ -4,10 +4,11 @@
   'use strict';
 
   /* ── state ── */
-  let allPhotos = [];
-  let visible   = [];
-  let current   = 0;
-  let activeTag = 'all';
+  let allPhotos  = [];
+  let speciesMap = {};
+  let visible    = [];
+  let current    = 0;
+  let activeTag  = 'all';
 
   /* ── elements ── */
   const grid      = document.getElementById('grid');
@@ -22,15 +23,32 @@
   const lbClose   = document.getElementById('lb-close');
   const lbPrev    = document.getElementById('lb-prev');
   const lbNext    = document.getElementById('lb-next');
+  const lbSpecies       = document.getElementById('lb-species');
+  const lbSpNameJa      = document.getElementById('lb-species-name-ja');
+  const lbSpNameEn      = document.getElementById('lb-species-name-en');
+  const lbSpMeta        = document.getElementById('lb-species-meta');
+  const lbSpFeatures    = document.getElementById('lb-species-features');
+  const lbSpDescription = document.getElementById('lb-species-description');
 
-  /* ── load photos.json ── */
-  fetch('photos.json')
-    .then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  /* ── load photos.json + species.json (並列) ── */
+  Promise.all([
+    fetch('photos.json').then(r => {
+      if (!r.ok) throw new Error(`photos.json: HTTP ${r.status}`);
       return r.json();
-    })
-    .then(data => {
-      allPhotos = data;
+    }),
+    fetch('species.json')
+      .then(r => {
+        if (!r.ok) throw new Error(`species.json: HTTP ${r.status}`);
+        return r.json();
+      })
+      .catch(err => {
+        console.warn(`[gallery] species.json を読み込めませんでした: ${err.message}。図鑑情報なしで起動します。`);
+        return {};
+      })
+  ])
+    .then(([photos, species]) => {
+      allPhotos  = photos;
+      speciesMap = species;
       init();
     })
     .catch(err => {
@@ -140,9 +158,51 @@
     if (p.date)   lines.push(p.date);
     lbExif.textContent = lines.join('\n');
 
+    renderSpecies(p.species);
+
     updateCounter();
     lb.classList.add('open');
     lbClose.focus();
+  }
+
+  /* ── species (encyclopedia) block ── */
+  function renderSpecies(speciesId) {
+    if (!speciesId) {
+      lbSpecies.hidden = true;
+      return;
+    }
+    const sp = speciesMap[speciesId];
+    if (!sp) {
+      console.warn(`[gallery] species "${speciesId}" は species.json に未定義です。`);
+      lbSpecies.hidden = true;
+      return;
+    }
+
+    lbSpNameJa.textContent = sp.name_ja || '';
+    lbSpNameEn.textContent = sp.name_en || '';
+
+    const metaParts = [];
+    if (sp.habitat) metaParts.push(sp.habitat);
+    if (sp.size)    metaParts.push(sp.size);
+    lbSpMeta.textContent = metaParts.join(' · ');
+    lbSpMeta.hidden = metaParts.length === 0;
+
+    lbSpFeatures.innerHTML = '';
+    if (Array.isArray(sp.features) && sp.features.length > 0) {
+      sp.features.forEach(f => {
+        const li = document.createElement('li');
+        li.textContent = f;
+        lbSpFeatures.appendChild(li);
+      });
+      lbSpFeatures.hidden = false;
+    } else {
+      lbSpFeatures.hidden = true;
+    }
+
+    lbSpDescription.textContent = sp.description || '';
+    lbSpDescription.hidden = !sp.description;
+
+    lbSpecies.hidden = false;
   }
 
   function closeLB() {

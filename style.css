@@ -224,11 +224,25 @@ button.tag.active {
   border: 1px solid var(--border);
   border-radius: 4px;
   width: 100%;
-  max-width: 760px;
+  max-width: 1100px;
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.lb-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+@media (min-width: 768px) {
+  .lb-content {
+    flex-direction: row;
+  }
 }
 
 /* ── lightbox image ── */
@@ -243,6 +257,15 @@ button.tag.active {
   overflow: hidden;
 }
 
+@media (min-width: 768px) {
+  .lb-img-wrap {
+    flex: 0 0 60%;
+    max-height: none;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+  }
+}
+
 #lb-img {
   max-width: 100%;
   max-height: 60vh;
@@ -250,10 +273,34 @@ button.tag.active {
   display: block;
 }
 
+@media (min-width: 768px) {
+  #lb-img {
+    max-height: 90vh;
+  }
+}
+
 /* ── lightbox body ── */
 .lb-body {
   padding: 14px 16px 12px;
   border-bottom: 1px solid var(--border);
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+@media (min-width: 768px) {
+  .lb-body {
+    flex: 1 1 40%;
+    border-bottom: none;
+  }
+}
+
+.lb-photo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .lb-title {
@@ -261,14 +308,12 @@ button.tag.active {
   font-weight: 500;
   color: var(--text-hi);
   letter-spacing: .06em;
-  margin-bottom: 8px;
 }
 
 .lb-tags {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
 }
 
 .lb-tag {
@@ -293,6 +338,8 @@ button.tag.active {
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .lb-close {
@@ -329,4 +376,74 @@ button.tag.active {
   font-size: 10px;
   color: var(--dim);
   letter-spacing: .06em;
+}
+
+/* ── lightbox: species encyclopedia ── */
+.lb-species {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.lb-species[hidden] { display: none; }
+
+.lb-species-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lb-species-name-ja {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-hi);
+  letter-spacing: .04em;
+}
+
+.lb-species-name-en {
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: .08em;
+}
+
+.lb-species-meta {
+  font-size: 10px;
+  color: var(--dim);
+  line-height: 1.7;
+  letter-spacing: .04em;
+}
+
+.lb-species-features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.lb-species-features li {
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.6;
+  padding-left: 12px;
+  position: relative;
+}
+
+.lb-species-features li::before {
+  content: '·';
+  position: absolute;
+  left: 2px;
+  color: var(--accent);
+}
+
+.lb-species-description {
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.8;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  white-space: pre-wrap;
 }
