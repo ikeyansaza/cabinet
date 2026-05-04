@@ -132,18 +132,66 @@ def guess_tags(filename: str) -> list[str]:
     for pattern, tag in TAG_RULES:
         if re.search(pattern, name) and tag not in tags:
             tags.append(tag)
-    return tags or ["other"]
+    return tags
+
+# 機械的なファイル名（カメラ採番）はタイトル化しない
+GENERIC_NAME_RE = re.compile(r'^(IMG|PXL|DSC|DSCN|DSCF|P\d|MVI)[\s_\-]', re.IGNORECASE)
 
 def guess_title(filename: str) -> str:
-    """ファイル名 → 表示タイトル (例: grey_heron_01.jpg → GREY HERON)"""
+    """ファイル名 → 表示タイトル (例: grey_heron_01.jpg → GREY HERON)
+    IMG_5621.JPG / PXL_20241117_xxx.jpg のようなカメラ採番ファイル名は空文字を返す。
+    """
     stem = Path(filename).stem
+    if GENERIC_NAME_RE.match(stem) or stem.replace('_', '').replace('-', '').isdigit():
+        return ""
     # 末尾の _01 _02 などを除去
     stem = re.sub(r'[_\-]\d+$', '', stem)
     return stem.replace("_", " ").replace("-", " ").upper()
 
 # ── メイン ──────────────────────────────────────────────────────────────────
 
-def build_entries(photos_dir: Path) -> list[dict]:
+# 既存 photos.json から保持する手動編集フィールド
+MANUAL_FIELDS = ("species", "title", "tags")
+
+# 出力時のキー順
+KEY_ORDER = ("file", "species", "date", "camera", "lens", "exif", "tags", "title")
+
+def load_existing(out_path: Path) -> dict[str, dict]:
+    """既存 photos.json を読み、file 名をキーにした辞書を返す。
+    ファイルが無い・壊れている場合は空辞書。
+    """
+    if not out_path.exists():
+        return {}
+    try:
+        data = json.loads(out_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"[warn] 既存 {out_path} を読めませんでした: {e}。新規生成します。", file=sys.stderr)
+        return {}
+    if not isinstance(data, list):
+        print(f"[warn] {out_path} の形式が想定外（list ではない）。新規生成します。", file=sys.stderr)
+        return {}
+    return {entry.get("file"): entry for entry in data if isinstance(entry, dict) and entry.get("file")}
+
+
+def reorder(entry: dict) -> dict:
+    """KEY_ORDER に従って key を並び替えた dict を返す。空文字や空リストの任意フィールドは省く。"""
+    result = {}
+    for k in KEY_ORDER:
+        if k not in entry:
+            continue
+        v = entry[k]
+        # file は必須なので残す。それ以外で空 string / 空 list は省く
+        if k != "file" and (v == "" or v == []):
+            continue
+        result[k] = v
+    # 想定外のキーがあれば末尾に追加（情報を失わない）
+    for k, v in entry.items():
+        if k not in result and k not in KEY_ORDER:
+            result[k] = v
+    return result
+
+
+def build_entries(photos_dir: Path, existing: dict[str, dict]) -> list[dict]:
     entries = []
 
     files = sorted(
@@ -156,19 +204,35 @@ def build_entries(photos_dir: Path) -> list[dict]:
         return entries
 
     for f in files:
-        print(f"  processing: {f.name}")
+        prev = existing.get(f.name, {})
+        had_prev = bool(prev)
+        print(f"  processing: {f.name}{' (merge)' if had_prev else ''}")
         exif_data = get_exif_data(f)
+
+        # 手動フィールドは既存値を優先、無ければファイル名から推定
+        title = prev.get("title", guess_title(f.name)) if had_prev else guess_title(f.name)
+        tags  = prev.get("tags",  guess_tags(f.name))  if had_prev else guess_tags(f.name)
 
         entry = {
             "file":   f.name,
-            "title":  guess_title(f.name),
-            "tags":   guess_tags(f.name),
-            "date":   exif_data["date"] or "",
+            "title":  title,
+            "tags":   tags,
+            "date":   exif_data["date"]   or "",
             "camera": exif_data["camera"] or "",
-            "lens":   exif_data["lens"] or "",
-            "exif":   exif_data["exif"] or "",
+            "lens":   exif_data["lens"]   or "",
+            "exif":   exif_data["exif"]   or "",
         }
-        entries.append(entry)
+
+        # species は手動フィールド。既存があればそのまま持ち越す
+        if "species" in prev:
+            entry["species"] = prev["species"]
+
+        entries.append(reorder(entry))
+
+    # 既存 photos.json にあって photos/ に無いファイルは削除されたものとして除外
+    dropped = set(existing.keys()) - {e["file"] for e in entries}
+    for name in sorted(dropped):
+        print(f"  dropped (file not found): {name}")
 
     return entries
 
@@ -185,16 +249,20 @@ def main():
         print(f"[error] ディレクトリが見つかりません: {photos_dir}", file=sys.stderr)
         sys.exit(1)
 
+    out_path = Path(args.output)
+    existing = load_existing(out_path)
+    if existing:
+        print(f"merging with existing {out_path} ({len(existing)} entries)")
+
     print(f"scanning {photos_dir} ...")
-    entries = build_entries(photos_dir)
+    entries = build_entries(photos_dir, existing)
     print(f"  {len(entries)} photos found")
 
-    output = json.dumps(entries, ensure_ascii=False, indent=2)
+    output = json.dumps(entries, ensure_ascii=False, indent=2) + "\n"
 
     if args.dry_run:
         print(output)
     else:
-        out_path = Path(args.output)
         out_path.write_text(output, encoding="utf-8")
         print(f"  → written to {out_path}")
 

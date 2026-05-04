@@ -108,15 +108,18 @@
     }
 
     visible.forEach((photo, i) => {
+      const cardTitle = photo.title || speciesMap[photo.species]?.name_ja || photo.file;
+      const metaParts = [...(photo.tags || []), photo.date].filter(Boolean);
+
       const card = document.createElement('div');
       card.className = 'card';
       card.setAttribute('tabindex', '0');
       card.setAttribute('role', 'button');
-      card.setAttribute('aria-label', photo.title || photo.file);
+      card.setAttribute('aria-label', cardTitle);
 
       const img = document.createElement('img');
       img.className = 'loading';
-      img.alt = photo.title || '';
+      img.alt = cardTitle;
       img.loading = 'lazy';
       img.src = `photos/${photo.file}`;
       img.addEventListener('load',  () => img.classList.replace('loading', 'loaded'));
@@ -125,8 +128,8 @@
       const info = document.createElement('div');
       info.className = 'card-info';
       info.innerHTML = `
-        <div class="card-title">${esc(photo.title || photo.file)}</div>
-        <div class="card-meta">${esc((photo.tags || []).join(' · '))} · ${esc(photo.date || '')}</div>
+        <div class="card-title">${esc(cardTitle)}</div>
+        <div class="card-meta">${esc(metaParts.join(' · '))}</div>
       `;
 
       card.appendChild(img);
@@ -140,16 +143,29 @@
 
   /* ── lightbox ── */
   function openLB(i) {
+    const wasAlreadyOpen = lb.classList.contains('open');
     current = i;
     const p = visible[i];
 
     lbImg.src = `photos/${p.file}`;
-    lbImg.alt = p.title || p.file;
-    lbTitle.textContent = p.title || p.file;
+    lbImg.alt = p.title || speciesMap[p.species]?.name_ja || p.file;
 
-    lbTags.innerHTML = (p.tags || [])
-      .map(t => `<span class="lb-tag">${esc(t)}</span>`)
-      .join('');
+    if (p.title) {
+      lbTitle.textContent = p.title;
+      lbTitle.hidden = false;
+    } else {
+      lbTitle.hidden = true;
+    }
+
+    const tagList = p.tags || [];
+    if (tagList.length > 0) {
+      lbTags.innerHTML = tagList
+        .map(t => `<span class="lb-tag">${esc(t)}</span>`)
+        .join('');
+      lbTags.hidden = false;
+    } else {
+      lbTags.hidden = true;
+    }
 
     const lines = [];
     if (p.camera) lines.push(p.camera);
@@ -162,7 +178,8 @@
 
     updateCounter();
     lb.classList.add('open');
-    lbClose.focus();
+    // 初回オープン時のみ close へフォーカス。prev/next ナビ中はフォーカスを奪わない
+    if (!wasAlreadyOpen) lbClose.focus();
   }
 
   /* ── species (encyclopedia) block ── */

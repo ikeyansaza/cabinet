@@ -379,15 +379,27 @@ button.tag.active {
 }
 
 /* ── lightbox: species encyclopedia ── */
+
+/* 図鑑ブロック内の本文（features/description）用フォントスタック。
+   日本語をモノスペースで読ませると可読性が悪いため、ここだけ
+   system sans-serif を使う。ヘッダー（name_ja/en, meta）は mono のまま。 */
+:root {
+  --font-body-jp: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', sans-serif;
+}
+
 .lb-species {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
 }
 
 .lb-species[hidden] { display: none; }
+
+/* species と photo-info の境界線。species が表示されているときだけ */
+.lb-species:not([hidden]) + .lb-photo-info {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
 
 .lb-species-header {
   display: flex;
@@ -396,20 +408,20 @@ button.tag.active {
 }
 
 .lb-species-name-ja {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 500;
   color: var(--text-hi);
   letter-spacing: .04em;
 }
 
 .lb-species-name-en {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--accent);
   letter-spacing: .08em;
 }
 
 .lb-species-meta {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--dim);
   line-height: 1.7;
   letter-spacing: .04em;
@@ -419,16 +431,18 @@ button.tag.active {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-top: 8px;
+  gap: 6px;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
 }
 
 .lb-species-features li {
-  font-size: 11px;
-  color: var(--text);
-  line-height: 1.6;
-  padding-left: 12px;
+  font-family: var(--font-body-jp);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-hi);
+  line-height: 1.7;
+  padding-left: 14px;
   position: relative;
 }
 
@@ -440,10 +454,12 @@ button.tag.active {
 }
 
 .lb-species-description {
-  font-size: 11px;
-  color: var(--text);
-  line-height: 1.8;
-  padding-top: 8px;
+  font-family: var(--font-body-jp);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text-hi);
+  line-height: 2.0;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
   white-space: pre-wrap;
 }

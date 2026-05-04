@@ -30,7 +30,8 @@ album/
 
 **絶対に変えないこと：**
 
-- フォント: `IBM Plex Mono` のみ。weight 300 / 400 / 500 のみ
+- フォント: 全体は `IBM Plex Mono` のみ。weight 300 / 400 / 500 のみ。
+  例外: 図鑑ブロックの本文（`.lb-species-features`, `.lb-species-description`）は、日本語の長文可読性を優先して system sans-serif（`--font-body-jp`）に切り替える。これ以外で別フォントを使わない
 - 背景: `#0a0a0a`（`--bg`）
 - アクセント: `#44aaff`（`--accent`）1色のみ
 - ボタン: 透明背景 + ボーダーのみ。塗りは使わない
@@ -60,21 +61,23 @@ album/
 [
   {
     "file":    "kingfisher_01.jpg",   // photos/ 以下のファイル名（必須）
-    "title":   "KINGFISHER",          // 大文字表記（必須）
-    "tags":    ["bird"],              // フィルター用タグ（必須・配列）
     "species": "kingfisher",          // species.json のキー（任意）
     "date":    "2024-05-20",          // 撮影日 YYYY-MM-DD（任意）
     "camera":  "α7IV",               // カメラ名（任意）
     "lens":    "200-600mm f/5.6-6.3 G", // レンズ名（任意）
-    "exif":    "f/6.3 · 1/2000s · ISO 3200" // 露出情報（任意）
+    "exif":    "f/6.3 · 1/2000s · ISO 3200", // 露出情報（任意）
+    "tags":    ["bird"],              // フィルター用タグ（任意・配列）
+    "title":   "KINGFISHER"           // カスタムタイトル（任意・大文字表記）
   }
 ]
 ```
 
-- `file` と `title` と `tags` は必須
-- `tags` の値は自由。gallery.js がフィルターボタンを自動生成する
-- `species` は任意。値は `species.json` のキーと一致させる。一致するとライトボックスに図鑑情報が出る
+- `file` のみ必須。他はすべて任意
+- `species` は `species.json` のキーと一致させる。一致するとライトボックスに図鑑情報が出る
+- `tags` は自由文字列の配列。値があれば gallery.js がフィルターボタンを自動生成する。空または未指定ならフィルター対象外
+- `title` は手動でセットしたい場合のみ。未指定ならカードでは `species.name_ja` →（無ければ）ファイル名にフォールバックし、ライトボックスでは非表示
 - 区切り文字は ` · `（スペース + 中点 + スペース）で統一
+- `gen_photos.py` は `IMG_*` / `PXL_*` のような機械的なファイル名のときは title/tags を空にする
 
 ---
 
@@ -108,10 +111,10 @@ album/
 ## gallery.js の設計方針
 
 - IIFE `(function(){ 'use strict'; ... })()` でグローバル汚染なし
-- `fetch('photos.json')` で非同期ロード。エラー時はグリッドにメッセージ表示
+- `fetch('photos.json')` と `fetch('species.json')` を `Promise.all` で並列取得。エラー時はグリッドにメッセージ表示（species.json は欠落でも warn のみで続行）
 - タグボタンは `photos.json` の内容から動的生成（ハードコードしない）
 - 画像は `loading="lazy"` + `img.loading / img.loaded` クラスで遅延ロード
-- XSS 対策: DOM に挿入するすべての文字列は `esc()` を通す
+- XSS 対策: DOM に挿入する文字列は `esc()` または `textContent` を使う。図鑑ブロック（renderSpecies）は `textContent` のみ使用
 
 **変更時の注意：**
 
@@ -132,7 +135,8 @@ python scripts/gen_photos.py --photos-dir /path/to/photos --dry-run
 
 - `TAG_RULES` リストにキーワードを追加するとタグ自動推定が拡張できる
 - EXIF が取れない場合は空文字列になる（エラーにはならない）
-- 既存の `photos.json` は上書きされる。手動編集した内容を保持したい場合は `--dry-run` で確認してからマージする
+- 既存の `photos.json` は上書きされる。手動編集した内容（`species` / `title` / `tags`）を保持したい場合は `--dry-run` で確認してからマージする
+- カメラ採番ファイル名（`IMG_*`, `PXL_*`, `DSC_*`, `DSCN_*`, `DSCF_*`, `Pxxx_*`, `MVI_*`）は title が空文字、tags は `[]` で生成される。意図的に値を付けたいときは手動編集
 
 ---
 
