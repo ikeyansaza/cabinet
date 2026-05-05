@@ -19,7 +19,7 @@
 
   async function photoUrl(file) {
     const T = await tauri();
-    const dir = await T.invoke('get_photos_dir');
+    const dir = await T.invoke('get_active_dir');
     if (!dir) return `photos/${file}`; // フォールバック
     const abs = `${dir}/${file}`.replace(/\\/g, '/');
     return T.convertFileSrc(abs);

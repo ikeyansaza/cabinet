@@ -133,6 +133,11 @@ fn rescan(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     Ok(serde_json::Value::Array(entries))
 }
 
+#[tauri::command]
+fn get_active_dir(state: State<'_, AppState>) -> Option<String> {
+    state.active_dir().map(|p| p.to_string_lossy().into_owned())
+}
+
 /// カテゴリ一覧と前回 active から、今回の active を決める。
 /// - 前回 active が一覧に含まれていればそれを返す
 /// - 含まれていなければ先頭を返す
@@ -286,6 +291,7 @@ pub fn run() {
             read_photos_json,
             read_species_json,
             rescan,
+            get_active_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
