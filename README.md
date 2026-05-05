@@ -25,9 +25,23 @@ npm install            # 初回のみ
 npm run tauri dev
 ```
 
-初回起動時にフォルダ（例 `~/Pictures/cabinet/`）を picker から選択する。
-そのフォルダに写真と `photos.json` / `species.json` を置く運用。
-新しい写真をフォルダに追加すると 500ms デバウンスで自動再スキャン。
+初回起動時にライブラリ root（例 `~/Pictures/album/`）を picker から選択する。
+その下に `animals/`, `arts/`, `food/` などのサブフォルダを作り、
+それぞれの中に写真と `photos.json` / `species.json` を置く。
+
+```text
+~/Pictures/album/
+├── animals/
+│   ├── photos.json
+│   ├── species.json
+│   └── IMG_*.jpg
+└── arts/
+    ├── photos.json
+    ├── species.json
+    └── IMG_*.jpg
+```
+
+ヘッダーのタブでカテゴリを切替。新しい写真をフォルダに追加すると 500ms デバウンスで自動再スキャン。
 
 ## ビルド（リリース版）
 

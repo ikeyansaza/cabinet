@@ -45,11 +45,15 @@ album/
 | 種類 | 場所 |
 |---|---|
 | アプリのフロント・バックエンドのコード | このリポジトリ |
-| 写真ファイル（JPEG 等） | ユーザが選んだ任意のフォルダ（例 `~/Pictures/album/`） |
-| `photos.json` / `species.json` | 上記フォトフォルダの中 |
-| アプリ状態（最後のフォルダ・ウィンドウ位置） | `~/Library/Application Support/com.naofumiikeda.album/` |
+| ライブラリ root（parent_dir） | ユーザが選んだ任意のフォルダ（例 `~/Pictures/album/`） |
+| カテゴリ（サブフォルダ） | parent_dir 直下の `animals/` `arts/` `food/` など |
+| 写真ファイル | カテゴリフォルダの中（例 `~/Pictures/album/animals/IMG_5621.JPG`） |
+| `photos.json` / `species.json` | 各カテゴリフォルダの中 |
+| アプリ状態（parent_dir / current_category / window 位置） | `~/Library/Application Support/com.naofumiikeda.album/` |
 
-写真フォルダごと外付け HDD にコピーすればメタデータも一緒に持ち運べる。
+カテゴリは parent_dir 直下のサブフォルダで「画像ファイルを 1 枚以上含むもの」が自動列挙される。
+ヘッダーのタブで切替。サブフォルダごとに独立した `species.json` を持つので、動物 / 絵画 / 食事
+など扱う情報が違うジャンルを混ぜずに管理できる。
 
 ---
 
