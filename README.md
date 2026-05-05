@@ -1,6 +1,7 @@
-# album
+# mokozukan
 
 動物写真の個人用デスクトップギャラリー（macOS / Tauri 2）。
+mokomoko デザインシステム + 図鑑 (zukan) で「mokozukan」。
 公開せず、自分の Mac でだけ動かす想定。
 
 ## 必要なもの
@@ -30,13 +31,30 @@ npm run tauri dev
 
 ## ビルド（リリース版）
 
+初回ビルド + symlink 設置（一度だけ）：
+
 ```bash
 npm run tauri build
-# → src-tauri/target/release/bundle/macos/album.app
+# → src-tauri/target/release/bundle/macos/mokozukan.app
+
+# /Applications/ から symlink で参照（rebuild するだけで反映される運用）
+ln -sf "$PWD/src-tauri/target/release/bundle/macos/mokozukan.app" \
+       /Applications/mokozukan.app
 ```
 
-生成された `album.app` を `/Applications/` にコピー。
-署名なしなので初回起動は右クリック → 開く で Gatekeeper を許可。
+署名なしなので初回起動は `/Applications/mokozukan.app` を **右クリック → 開く** で Gatekeeper を一度だけ許可する。次回以降は通常通りダブルクリックで起動。
+
+## アプリの更新
+
+ソースを修正した後：
+
+```bash
+mokozukan-update
+```
+
+`~/.zshrc` で `alias mokozukan-update="cd ~/repositories/my-album && npm run tauri build"` を定義済み。
+
+`/Applications/mokozukan.app` は symlink なので rebuild 完了後に再起動するだけで新版が立ち上がる（コピー不要）。
 
 ## ショートカット
 
