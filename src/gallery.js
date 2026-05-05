@@ -46,17 +46,66 @@
   const lbSpDescription = document.getElementById('lb-species-description');
   const picker        = document.getElementById('picker');
   const pickerBtn     = document.getElementById('picker-btn');
+  const categoryTabs   = document.getElementById('category-tabs');
 
-  /* ── boot: フォルダ未設定なら picker、設定済なら load ── */
+  /* ── boot: フォルダ未設定なら picker、設定済なら refreshCategories ── */
   import('./tauri.js').then(async (T) => {
     await setupMenuListeners(T);
-    const dir = await T.invoke('get_photos_dir');
-    if (dir) {
-      await loadAll(T);
+    const parent = await T.invoke('get_parent_dir');
+    if (parent) {
+      await refreshCategories(T);
     } else {
       showPicker(T);
     }
   });
+
+  async function refreshCategories(T) {
+    const cats = await T.invoke('list_categories');
+    const active = await T.invoke('get_current_category');
+    renderCategoryTabs(T, cats, active);
+    if (cats.length === 0) {
+      grid.innerHTML = '<div class="empty">サブフォルダ（カテゴリ）を作成してください</div>';
+      grid.hidden = false;
+      picker.hidden = true;
+      return;
+    }
+    if (active) {
+      await loadAll(T);
+    } else {
+      // 防御: 一覧があるのに active が無いケース
+      await chooseCategory(T, cats[0]);
+    }
+  }
+
+  function renderCategoryTabs(T, cats, active) {
+    categoryTabs.innerHTML = '';
+    if (cats.length === 0) {
+      categoryTabs.hidden = true;
+      return;
+    }
+    categoryTabs.hidden = false;
+    cats.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = 'cat-tab';
+      if (cat === active) btn.classList.add('active');
+      btn.dataset.cat = cat;
+      btn.textContent = cat;
+      btn.addEventListener('click', () => chooseCategory(T, cat));
+      categoryTabs.appendChild(btn);
+    });
+  }
+
+  async function chooseCategory(T, category) {
+    try {
+      await T.invoke('set_current_category', { category });
+      categoryTabs.querySelectorAll('.cat-tab').forEach(b => {
+        b.classList.toggle('active', b.dataset.cat === category);
+      });
+      await loadAll(T);
+    } catch (err) {
+      console.warn(`[album] カテゴリ切替失敗: ${err}`);
+    }
+  }
 
   async function loadAll(T) {
     try {
@@ -123,8 +172,8 @@
     pickerInFlight = true;
     pickerBtn.disabled = true;
     try {
-      await T.invoke('set_photos_dir', { path });
-      await loadAll(T);
+      await T.invoke('set_parent_dir', { path });
+      await refreshCategories(T);
     } catch (err) {
       alert(`フォルダ設定エラー: ${err}`);
     } finally {
