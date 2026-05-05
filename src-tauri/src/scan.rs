@@ -71,6 +71,32 @@ fn list_image_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+/// parent_dir 直下のサブフォルダで、画像ファイルを 1 枚以上含むものを名前順で返す。
+pub fn list_categories(parent: &Path) -> Vec<String> {
+    let Ok(read) = std::fs::read_dir(parent) else { return vec![]; };
+    let mut categories: Vec<String> = read
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .filter(|e| has_images(&e.path()))
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|name| !name.starts_with('.'))   // .DS_Store 等の隠しフォルダは除外
+        .collect();
+    categories.sort();
+    categories
+}
+
+fn has_images(dir: &Path) -> bool {
+    let Ok(read) = std::fs::read_dir(dir) else { return false; };
+    read.filter_map(|e| e.ok())
+        .filter(|e| e.path().is_file())
+        .any(|e| {
+            e.path().extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| SUPPORTED_EXT.iter().any(|s| s.eq_ignore_ascii_case(ext)))
+                .unwrap_or(false)
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,5 +140,34 @@ mod tests {
         let entries = scan_and_merge(tmp.path());
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].get("file").unwrap().as_str(), Some("a.jpg"));
+    }
+
+    #[test]
+    fn list_categories_empty_dir_returns_empty() {
+        let tmp = TempDir::new().unwrap();
+        let cats = list_categories(tmp.path());
+        assert!(cats.is_empty());
+    }
+
+    #[test]
+    fn list_categories_excludes_subdirs_without_images() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir(tmp.path().join("animals")).unwrap();
+        fs::write(tmp.path().join("animals/a.jpg"), b"").unwrap();
+        fs::create_dir(tmp.path().join("notes")).unwrap();
+        fs::write(tmp.path().join("notes/memo.txt"), b"").unwrap();
+        let cats = list_categories(tmp.path());
+        assert_eq!(cats, vec!["animals".to_string()]);
+    }
+
+    #[test]
+    fn list_categories_sorts_and_skips_hidden() {
+        let tmp = TempDir::new().unwrap();
+        for name in &["food", "animals", ".trash"] {
+            fs::create_dir(tmp.path().join(name)).unwrap();
+            fs::write(tmp.path().join(name).join("x.jpg"), b"").unwrap();
+        }
+        let cats = list_categories(tmp.path());
+        assert_eq!(cats, vec!["animals".to_string(), "food".to_string()]);
     }
 }
