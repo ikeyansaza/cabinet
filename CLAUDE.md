@@ -1,14 +1,15 @@
-# CLAUDE.md — mokozukan
+# CLAUDE.md — cabinet
 
 ## プロジェクト概要
 
-一眼レフで撮った動物写真の個人用デスクトップギャラリー兼図鑑（macOS / Tauri 2）。
-アプリ名は `mokozukan`（mokomoko + zukan）。
+個人用デスクトップギャラリー兼コレクション（macOS / Tauri 2）。
+アプリ名は `cabinet`（"cabinet of curiosities" 由来）。
+動物・絵画・彫刻・食事など、自分が眺めたいものを写真と説明（species.json）で並べる。
 WebView 内で従来の純静的 HTML/CSS/JS が動き、Rust 側がフォトフォルダの
 EXIF 抽出・JSON 読み書き・ファイルウォッチャーを担当する。
 公開はせず、個人 Mac でのみ動かす運用。
 
-ノート: bundle identifier は歴史的経緯から `com.naofumiikeda.album` のまま（state を引き継ぐため変更しない）。アプリ表示名のみ `mokozukan`。
+ノート: bundle identifier は歴史的経緯から `com.naofumiikeda.album` のまま（state を引き継ぐため変更しない）。アプリ表示名のみ `cabinet`。
 
 ---
 

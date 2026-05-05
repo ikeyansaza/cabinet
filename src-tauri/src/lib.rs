@@ -122,7 +122,7 @@ pub fn run() {
             // システムメニュー
             use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 
-            let app_name = "mokozukan";
+            let app_name = "cabinet";
             let app_menu = Submenu::with_items(
                 app,
                 app_name,

@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "mokozukan",
+  "productName": "cabinet",
   "version": "0.1.0",
   "identifier": "com.naofumiikeda.album",
   "build": {
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "mokozukan",
+        "title": "cabinet",
         "width": 1200,
         "height": 800,
         "minWidth": 600,
