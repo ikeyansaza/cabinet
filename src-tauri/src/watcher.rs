@@ -46,4 +46,8 @@ impl PhotoWatcher {
         *guard = Some(debouncer);
         Ok(())
     }
+
+    pub fn stop(&self) {
+        *self.inner.lock() = None;
+    }
 }

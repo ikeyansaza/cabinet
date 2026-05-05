@@ -1,3 +1,6 @@
+// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod state;
 mod exif;
 mod scan;
@@ -10,15 +13,18 @@ use tauri_plugin_store::StoreExt;
 use state::AppState;
 
 const STORE_FILE: &str = "state.json";
-const STORE_KEY_PHOTOS_DIR: &str = "photos_dir";
+const STORE_KEY_PARENT_DIR: &str = "parent_dir";
+const STORE_KEY_CURRENT_CATEGORY: &str = "current_category";
+// 後方互換: 旧 "photos_dir" キー。初回起動時のみ参照、最初の set_parent_dir で消える
+const STORE_KEY_LEGACY_PHOTOS_DIR: &str = "photos_dir";
 
 #[tauri::command]
-fn get_photos_dir(state: State<'_, AppState>) -> Option<String> {
-    state.photos_dir().map(|p| p.to_string_lossy().into_owned())
+fn get_parent_dir(state: State<'_, AppState>) -> Option<String> {
+    state.parent_dir().map(|p| p.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
-fn set_photos_dir(
+fn set_parent_dir(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     path: String,
@@ -28,47 +34,52 @@ fn set_photos_dir(
         return Err(format!("not a directory: {path}"));
     }
 
-    // 永続化を先に。失敗したら state はまだ古いまま、再起動しても最後の有効値が残る。
+    // 永続化を先に
     let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
-    store.set(STORE_KEY_PHOTOS_DIR, serde_json::Value::String(path));
+    store.set(STORE_KEY_PARENT_DIR, serde_json::Value::String(path));
+    store.delete(STORE_KEY_LEGACY_PHOTOS_DIR);
     store.save().map_err(|e| e.to_string())?;
 
-    state.set_photos_dir(Some(path_buf.clone()));
-    state.watcher.watch(app, path_buf)?;
+    state.set_parent_dir(Some(path_buf.clone()));
+
+    // カテゴリの再評価
+    let cats = scan::list_categories(&path_buf);
+    let new_active = pick_active_category(&cats, state.current_category().as_deref());
+    apply_active_category(app, &state, new_active)?;
+
     Ok(())
 }
 
-fn read_json_file<T: for<'de> serde::Deserialize<'de> + Default>(
-    dir: Option<PathBuf>,
-    filename: &str,
-) -> T {
-    let Some(dir) = dir else { return T::default(); };
-    let path = dir.join(filename);
-    let Ok(text) = std::fs::read_to_string(&path) else { return T::default(); };
-    serde_json::from_str(&text).unwrap_or_else(|e| {
-        eprintln!("[album] {filename} JSON parse error: {e}");
-        T::default()
-    })
+#[tauri::command]
+fn list_categories(state: State<'_, AppState>) -> Vec<String> {
+    let Some(parent) = state.parent_dir() else { return vec![]; };
+    scan::list_categories(&parent)
 }
 
 #[tauri::command]
-fn read_photos_json(state: State<'_, AppState>) -> serde_json::Value {
-    let photos: serde_json::Value = read_json_file(state.photos_dir(), "photos.json");
-    if photos.is_array() {
-        photos
-    } else {
-        serde_json::Value::Array(vec![])
-    }
+fn get_current_category(state: State<'_, AppState>) -> Option<String> {
+    state.current_category()
 }
 
 #[tauri::command]
-fn read_species_json(state: State<'_, AppState>) -> serde_json::Value {
-    let species: serde_json::Value = read_json_file(state.photos_dir(), "species.json");
-    if species.is_object() {
-        species
-    } else {
-        serde_json::Value::Object(serde_json::Map::new())
+fn set_current_category(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    category: String,
+) -> Result<(), String> {
+    let parent = state.parent_dir().ok_or("parent_dir is not set")?;
+    let category_dir = parent.join(&category);
+    if !category_dir.is_dir() {
+        return Err(format!("not a category: {category}"));
     }
+
+    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
+    store.set(STORE_KEY_CURRENT_CATEGORY, serde_json::Value::String(category.clone()));
+    store.save().map_err(|e| e.to_string())?;
+
+    state.set_current_category(Some(category));
+    state.watcher.watch(app, category_dir)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -81,40 +92,138 @@ async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
     rx.await.ok().flatten()
 }
 
+fn read_json_file<T: for<'de> serde::Deserialize<'de> + Default>(
+    dir: PathBuf,
+    filename: &str,
+) -> T {
+    let path = dir.join(filename);
+    let Ok(text) = std::fs::read_to_string(&path) else { return T::default(); };
+    serde_json::from_str(&text).unwrap_or_else(|e| {
+        eprintln!("[album] {filename} JSON parse error: {e}");
+        T::default()
+    })
+}
+
+#[tauri::command]
+fn read_photos_json(state: State<'_, AppState>) -> serde_json::Value {
+    let Some(dir) = state.active_dir() else { return serde_json::Value::Array(vec![]); };
+    let photos: serde_json::Value = read_json_file(dir, "photos.json");
+    if photos.is_array() {
+        photos
+    } else {
+        serde_json::Value::Array(vec![])
+    }
+}
+
+#[tauri::command]
+fn read_species_json(state: State<'_, AppState>) -> serde_json::Value {
+    let Some(dir) = state.active_dir() else { return serde_json::Value::Object(serde_json::Map::new()); };
+    let species: serde_json::Value = read_json_file(dir, "species.json");
+    if species.is_object() {
+        species
+    } else {
+        serde_json::Value::Object(serde_json::Map::new())
+    }
+}
+
 #[tauri::command]
 fn rescan(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    let Some(dir) = state.photos_dir() else {
-        return Err("photos_dir is not set".into());
-    };
+    let dir = state.active_dir().ok_or("no active category")?;
     let entries = scan::scan_and_merge(&dir);
     Ok(serde_json::Value::Array(entries))
+}
+
+/// カテゴリ一覧と前回 active から、今回の active を決める。
+/// - 前回 active が一覧に含まれていればそれを返す
+/// - 含まれていなければ先頭を返す
+/// - 一覧が空なら None
+fn pick_active_category(cats: &[String], previous: Option<&str>) -> Option<String> {
+    if let Some(prev) = previous {
+        if cats.iter().any(|c| c == prev) {
+            return Some(prev.to_string());
+        }
+    }
+    cats.first().cloned()
+}
+
+/// active カテゴリを state に設定し、watcher を再起動して store にも保存する。
+/// new_active が None ならカテゴリ未設定状態にし、watcher を停止。
+fn apply_active_category(
+    app: tauri::AppHandle,
+    state: &State<'_, AppState>,
+    new_active: Option<String>,
+) -> Result<(), String> {
+    state.set_current_category(new_active.clone());
+
+    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
+    match &new_active {
+        Some(cat) => {
+            store.set(STORE_KEY_CURRENT_CATEGORY, serde_json::Value::String(cat.clone()));
+        }
+        None => {
+            store.delete(STORE_KEY_CURRENT_CATEGORY);
+        }
+    }
+    store.save().map_err(|e| e.to_string())?;
+
+    if let (Some(parent), Some(cat)) = (state.parent_dir(), new_active) {
+        let dir = parent.join(&cat);
+        if dir.is_dir() {
+            state.watcher.watch(app, dir)?;
+        } else {
+            state.watcher.stop();
+        }
+    } else {
+        state.watcher.stop();
+    }
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::default().build())
-        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            #[cfg(debug_assertions)]
+            app.handle().plugin(
+                tauri_plugin_log::Builder::default()
+                    .level(log::LevelFilter::Info)
+                    .build(),
+            )?;
 
             app.manage(AppState::new());
 
-            // 起動時に store から photos_dir を復元
+            // 起動時に store から parent_dir / current_category を復元
             let store = app.store(STORE_FILE)?;
-            if let Some(serde_json::Value::String(path)) = store.get(STORE_KEY_PHOTOS_DIR) {
-                let path_buf = PathBuf::from(&path);
+
+            // 後方互換: 新キー parent_dir が無ければ旧 photos_dir を読む
+            let parent_path: Option<String> = match store.get(STORE_KEY_PARENT_DIR) {
+                Some(serde_json::Value::String(s)) => Some(s),
+                _ => match store.get(STORE_KEY_LEGACY_PHOTOS_DIR) {
+                    Some(serde_json::Value::String(s)) => Some(s),
+                    _ => None,
+                },
+            };
+
+            let saved_category: Option<String> = match store.get(STORE_KEY_CURRENT_CATEGORY) {
+                Some(serde_json::Value::String(s)) => Some(s),
+                _ => None,
+            };
+
+            if let Some(path_str) = parent_path {
+                let path_buf = PathBuf::from(&path_str);
                 if path_buf.is_dir() {
-                    app.state::<AppState>().set_photos_dir(Some(path_buf.clone()));
-                    if let Err(e) = app.state::<AppState>().watcher.watch(app.handle().clone(), path_buf) {
-                        eprintln!("[album] failed to start watcher on launch: {e}");
+                    app.state::<AppState>().set_parent_dir(Some(path_buf.clone()));
+                    let cats = scan::list_categories(&path_buf);
+                    let active = pick_active_category(&cats, saved_category.as_deref());
+                    if let Some(cat) = active {
+                        app.state::<AppState>().set_current_category(Some(cat.clone()));
+                        let dir = path_buf.join(&cat);
+                        if let Err(e) = app.state::<AppState>().watcher.watch(app.handle().clone(), dir) {
+                            eprintln!("[album] failed to start watcher on launch: {e}");
+                        }
                     }
                 }
             }
@@ -152,7 +261,6 @@ pub fn run() {
             let menu = Menu::with_items(app, &[&app_menu, &file_menu])?;
             app.set_menu(menu)?;
 
-            // メニューイベント
             app.on_menu_event(move |app, event| {
                 let id = event.id().0.as_str();
                 match id {
@@ -169,8 +277,11 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_photos_dir,
-            set_photos_dir,
+            get_parent_dir,
+            set_parent_dir,
+            list_categories,
+            get_current_category,
+            set_current_category,
             pick_folder,
             read_photos_json,
             read_species_json,
@@ -178,4 +289,34 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn picks_previous_when_present() {
+        let cats = vec!["animals".into(), "arts".into()];
+        assert_eq!(pick_active_category(&cats, Some("arts")), Some("arts".into()));
+    }
+
+    #[test]
+    fn falls_back_to_first_when_previous_missing() {
+        let cats = vec!["animals".into(), "arts".into()];
+        assert_eq!(pick_active_category(&cats, Some("food")), Some("animals".into()));
+    }
+
+    #[test]
+    fn falls_back_to_first_when_no_previous() {
+        let cats = vec!["animals".into()];
+        assert_eq!(pick_active_category(&cats, None), Some("animals".into()));
+    }
+
+    #[test]
+    fn returns_none_for_empty_list() {
+        let cats: Vec<String> = vec![];
+        assert_eq!(pick_active_category(&cats, Some("animals")), None);
+        assert_eq!(pick_active_category(&cats, None), None);
+    }
 }

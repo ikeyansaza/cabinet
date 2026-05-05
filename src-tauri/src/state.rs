@@ -40,15 +40,6 @@ impl AppState {
         let category = self.current_category.lock().clone()?;
         Some(parent.join(category))
     }
-
-    // ── 後方互換 alias（Task 3 で lib.rs を書き換えるまで維持。書き換え後 Task 3 で削除） ──
-    pub fn photos_dir(&self) -> Option<PathBuf> {
-        self.parent_dir()
-    }
-
-    pub fn set_photos_dir(&self, path: Option<PathBuf>) {
-        self.set_parent_dir(path)
-    }
 }
 
 #[cfg(test)]
