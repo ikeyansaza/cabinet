@@ -378,6 +378,39 @@ button.tag.active {
   letter-spacing: .06em;
 }
 
+/* ── category tabs（ヘッダー直下） ── */
+.category-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.category-tabs[hidden] { display: none; }
+
+.cat-tab {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text);
+  cursor: pointer;
+  letter-spacing: .08em;
+  margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+}
+
+.cat-tab:hover {
+  color: var(--text-hi);
+}
+
+.cat-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 /* ── lightbox: species encyclopedia ── */
 
 /* 図鑑ブロック内の本文（features/description）用フォントスタック。
