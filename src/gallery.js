@@ -48,6 +48,22 @@
   const pickerBtn     = document.getElementById('picker-btn');
   const categoryTabs   = document.getElementById('category-tabs');
 
+  /* ── grid のクリック / キー操作は delegation で受ける（カード再生成時にリスナ重複しないように） ── */
+  grid.addEventListener('click', (e) => {
+    const card = e.target.closest('.card');
+    if (!card || !grid.contains(card)) return;
+    const idx = Number(card.dataset.index);
+    if (Number.isFinite(idx)) openLB(idx);
+  });
+  grid.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const card = e.target.closest('.card');
+    if (!card) return;
+    e.preventDefault();
+    const idx = Number(card.dataset.index);
+    if (Number.isFinite(idx)) openLB(idx);
+  });
+
   /* ── boot: フォルダ未設定なら picker、設定済なら refreshCategories ── */
   import('./tauri.js').then(async (T) => {
     await setupMenuListeners(T);
@@ -117,6 +133,8 @@
       speciesMap = species || {};
       picker.hidden = true;
       grid.hidden = false;
+      // カテゴリ / フォルダ切替時はファイル名衝突によるカード誤再利用を避けるため明示クリア
+      grid.replaceChildren();
       init();
     } catch (err) {
       grid.innerHTML = `<div class="loading">error: ${err.message}</div>`;
@@ -240,47 +258,78 @@
     countEl.textContent = visible.length;
   }
 
-  /* ── grid render ── */
+  /* ── grid render ──
+     ファイル名をキーにした差分更新。既存カードはそのまま再利用するので、
+     watcher 起因の rescan で全カードがフェードし直す（チカチカ）のを防ぐ */
   function renderGrid() {
-    grid.innerHTML = '';
-
     if (visible.length === 0) {
+      grid.replaceChildren();
       grid.innerHTML = '<div class="empty">no photos found</div>';
       return;
     }
 
-    visible.forEach((photo, i) => {
-      const cardTitle = photo.title || speciesMap[photo.species]?.name_ja || photo.file;
-      const metaParts = [...(photo.tags || []), photo.date].filter(Boolean);
+    const existing = new Map();
+    for (const node of grid.children) {
+      if (node.dataset && node.dataset.file) {
+        existing.set(node.dataset.file, node);
+      }
+    }
 
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.setAttribute('tabindex', '0');
-      card.setAttribute('role', 'button');
-      card.setAttribute('aria-label', cardTitle);
-
-      const img = document.createElement('img');
-      img.className = 'loading';
-      img.alt = cardTitle;
-      img.loading = 'lazy';
-      photoUrl(photo.file).then(url => { img.src = url; });
-      img.addEventListener('load',  () => img.classList.replace('loading', 'loaded'));
-      img.addEventListener('error', () => img.classList.replace('loading', 'loaded'));
-
-      const info = document.createElement('div');
-      info.className = 'card-info';
-      info.innerHTML = `
-        <div class="card-title">${esc(cardTitle)}</div>
-        <div class="card-meta">${esc(metaParts.join(' · '))}</div>
-      `;
-
-      card.appendChild(img);
-      card.appendChild(info);
-      card.addEventListener('click', () => openLB(i));
-      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') openLB(i); });
-
-      grid.appendChild(card);
+    const next = visible.map((photo, i) => {
+      const reused = existing.get(photo.file);
+      if (reused) {
+        reused.dataset.index = String(i);
+        updateCardInfo(reused, photo);
+        return reused;
+      }
+      return createCard(photo, i);
     });
+
+    grid.replaceChildren(...next);
+  }
+
+  function createCard(photo, i) {
+    const cardTitle = photo.title || speciesMap[photo.species]?.name_ja || photo.file;
+    const metaParts = [...(photo.tags || []), photo.date].filter(Boolean);
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.file = photo.file;
+    card.dataset.index = String(i);
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', cardTitle);
+
+    const img = document.createElement('img');
+    img.className = 'loading';
+    img.alt = cardTitle;
+    img.loading = 'lazy';
+    photoUrl(photo.file).then(url => { img.src = url; });
+    img.addEventListener('load',  () => img.classList.replace('loading', 'loaded'));
+    img.addEventListener('error', () => img.classList.replace('loading', 'loaded'));
+
+    const info = document.createElement('div');
+    info.className = 'card-info';
+    info.innerHTML = `
+      <div class="card-title">${esc(cardTitle)}</div>
+      <div class="card-meta">${esc(metaParts.join(' · '))}</div>
+    `;
+
+    card.appendChild(img);
+    card.appendChild(info);
+    return card;
+  }
+
+  function updateCardInfo(card, photo) {
+    const cardTitle = photo.title || speciesMap[photo.species]?.name_ja || photo.file;
+    const metaText = [...(photo.tags || []), photo.date].filter(Boolean).join(' · ');
+    card.setAttribute('aria-label', cardTitle);
+    const titleEl = card.querySelector('.card-title');
+    const metaEl = card.querySelector('.card-meta');
+    if (titleEl) titleEl.textContent = cardTitle;
+    if (metaEl) metaEl.textContent = metaText;
+    const img = card.querySelector('img');
+    if (img) img.alt = cardTitle;
   }
 
   /* ── lightbox ── */
