@@ -5,6 +5,7 @@ mod state;
 mod exif;
 mod scan;
 mod watcher;
+mod edit;
 
 use std::path::PathBuf;
 use tauri::{Emitter, Manager, State};
@@ -136,6 +137,25 @@ fn rescan(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
 #[tauri::command]
 fn get_active_dir(state: State<'_, AppState>) -> Option<String> {
     state.active_dir().map(|p| p.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn write_species_json(
+    state: State<'_, AppState>,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    let dir = state.active_dir().ok_or("no active category")?;
+    edit::write_species_json(&dir, &value)
+}
+
+#[tauri::command]
+fn update_photo_species(
+    state: State<'_, AppState>,
+    file: String,
+    species: Option<String>,
+) -> Result<(), String> {
+    let dir = state.active_dir().ok_or("no active category")?;
+    edit::update_photo_species(&dir, &file, species.as_deref())
 }
 
 /// カテゴリ一覧と前回 active から、今回の active を決める。
@@ -292,6 +312,8 @@ pub fn run() {
             read_species_json,
             rescan,
             get_active_dir,
+            write_species_json,
+            update_photo_species,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
