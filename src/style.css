@@ -497,6 +497,71 @@ button.tag.active {
   white-space: pre-wrap;
 }
 
+/* ── lightbox: 3D model viewer ── */
+.lb-3d {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.lb-3d[hidden] { display: none; }
+
+.lb-3d-toggle {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 2px;
+  letter-spacing: .06em;
+  transition: border-color .15s, color .15s;
+  align-self: flex-start;
+}
+
+.lb-3d-toggle:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.lb-3d-toggle:disabled {
+  color: var(--dim);
+  cursor: not-allowed;
+}
+
+.lb-3d-viewer {
+  width: 100%;
+  height: min(60vh, 500px);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.lb-3d-viewer[hidden] { display: none; }
+
+.lb-3d-viewer model-viewer {
+  width: 100%;
+  height: 100%;
+  --poster-color: var(--bg);
+  background: var(--bg);
+}
+
+.lb-3d-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--err);
+  letter-spacing: .06em;
+}
+
 /* ── folder picker (初回起動・未設定時) ── */
 .picker {
   border: 1px dashed var(--border);
