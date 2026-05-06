@@ -13,6 +13,17 @@ pub fn write_species_json(dir: &Path, value: &Value) -> Result<(), String> {
     write_atomic(&path, json.as_bytes())
 }
 
+/// artists.json をアクティブディレクトリ直下に atomic 書き込み。
+/// arts カテゴリでのみ用いる作家マスタ。
+pub fn write_artists_json(dir: &Path, value: &Value) -> Result<(), String> {
+    if !value.is_object() {
+        return Err("artists.json must be a JSON object".into());
+    }
+    let path = dir.join("artists.json");
+    let json = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
+    write_atomic(&path, json.as_bytes())
+}
+
 /// photos.json 内の指定 file の species フィールドを上書き。
 /// species が None または空文字なら species フィールドを削除する。
 /// 該当 file が photos.json に無ければ no-op（scan_and_merge 完了前のレースを許容）。
@@ -97,6 +108,29 @@ mod tests {
     fn rejects_non_object_species_json() {
         let tmp = TempDir::new().unwrap();
         let r = write_species_json(tmp.path(), &Value::Array(vec![]));
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn writes_artists_json_object() {
+        let tmp = TempDir::new().unwrap();
+        let mut obj = Map::new();
+        obj.insert(
+            "taro_okamoto".into(),
+            json!({ "name": "岡本太郎", "bio": "前衛芸術家" }),
+        );
+        write_artists_json(tmp.path(), &Value::Object(obj)).unwrap();
+
+        let text = fs::read_to_string(tmp.path().join("artists.json")).unwrap();
+        let parsed: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(parsed["taro_okamoto"]["name"].as_str(), Some("岡本太郎"));
+        assert_eq!(parsed["taro_okamoto"]["bio"].as_str(), Some("前衛芸術家"));
+    }
+
+    #[test]
+    fn rejects_non_object_artists_json() {
+        let tmp = TempDir::new().unwrap();
+        let r = write_artists_json(tmp.path(), &Value::Array(vec![]));
         assert!(r.is_err());
     }
 

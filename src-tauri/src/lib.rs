@@ -128,6 +128,17 @@ fn read_species_json(state: State<'_, AppState>) -> serde_json::Value {
 }
 
 #[tauri::command]
+fn read_artists_json(state: State<'_, AppState>) -> serde_json::Value {
+    let Some(dir) = state.active_dir() else { return serde_json::Value::Object(serde_json::Map::new()); };
+    let artists: serde_json::Value = read_json_file(dir, "artists.json");
+    if artists.is_object() {
+        artists
+    } else {
+        serde_json::Value::Object(serde_json::Map::new())
+    }
+}
+
+#[tauri::command]
 fn rescan(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let dir = state.active_dir().ok_or("no active category")?;
     let entries = scan::scan_and_merge(&dir);
@@ -146,6 +157,15 @@ fn write_species_json(
 ) -> Result<(), String> {
     let dir = state.active_dir().ok_or("no active category")?;
     edit::write_species_json(&dir, &value)
+}
+
+#[tauri::command]
+fn write_artists_json(
+    state: State<'_, AppState>,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    let dir = state.active_dir().ok_or("no active category")?;
+    edit::write_artists_json(&dir, &value)
 }
 
 #[tauri::command]
@@ -310,9 +330,11 @@ pub fn run() {
             pick_folder,
             read_photos_json,
             read_species_json,
+            read_artists_json,
             rescan,
             get_active_dir,
             write_species_json,
+            write_artists_json,
             update_photo_species,
         ])
         .run(tauri::generate_context!())

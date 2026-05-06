@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>album</title>
+  <title>cabinet</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -16,7 +16,7 @@
   <div class="page">
 
     <header>
-      <div class="logo">album</div>
+      <div class="logo">cabinet</div>
       <div class="header-right">
         <span class="meta" id="header-meta">—</span>
       </div>
@@ -37,17 +37,17 @@
         <span class="dot"></span>
         <b id="count">—</b> photos
       </div>
-      <div class="status dim">click to open · ← → to navigate · esc to close</div>
+      <div class="status dim">click to open · ← → navigate · scroll/dblclick to zoom · esc close</div>
     </div>
 
-  <div class="picker" id="picker" hidden>
-    <div class="picker-inner">
-      <div class="picker-label">photos folder</div>
-      <p class="picker-hint">写真フォルダを選択してください。<br>
-        フォルダをドロップ、または下のボタンから。</p>
-      <button class="picker-btn" id="picker-btn">[ select folder ]</button>
+    <div class="picker" id="picker" hidden>
+      <div class="picker-inner">
+        <div class="picker-label">photos folder</div>
+        <p class="picker-hint">写真フォルダを選択してください。<br>
+          フォルダをドロップ、または下のボタンから。</p>
+        <button class="picker-btn" id="picker-btn">[ select folder ]</button>
+      </div>
     </div>
-  </div>
 
     <div class="grid" id="grid">
       <div class="loading">loading photos.json ...</div>
@@ -76,6 +76,22 @@
               <div class="lb-3d-viewer" id="lb-3d-viewer" hidden></div>
             </div>
           </div>
+          <div class="lb-artist" id="lb-artist" hidden>
+            <div class="lb-artist-label">作家</div>
+            <div class="lb-artist-name" id="lb-artist-name"></div>
+            <div class="lb-artist-name-en" id="lb-artist-name-en"></div>
+            <div class="lb-artist-meta" id="lb-artist-meta"></div>
+            <ul class="lb-artist-features" id="lb-artist-features"></ul>
+            <div class="lb-artist-bio" id="lb-artist-bio"></div>
+          </div>
+          <div class="lb-artist lb-artist-co" id="lb-artist-co" hidden>
+            <div class="lb-artist-label">共作 / co-artist</div>
+            <div class="lb-artist-name" id="lb-artist-co-name"></div>
+            <div class="lb-artist-name-en" id="lb-artist-co-name-en"></div>
+            <div class="lb-artist-meta" id="lb-artist-co-meta"></div>
+            <ul class="lb-artist-features" id="lb-artist-co-features"></ul>
+            <div class="lb-artist-bio" id="lb-artist-co-bio"></div>
+          </div>
           <div class="lb-photo-info">
             <div class="lb-title" id="lb-title" hidden></div>
             <div class="lb-tags" id="lb-tags" hidden></div>
@@ -83,15 +99,15 @@
           </div>
         </div>
       </div>
+      <span class="lb-close" id="lb-close" tabindex="0" role="button" aria-label="close">[ close ]</span>
       <div class="lb-nav">
         <button class="lb-edit-btn" id="lb-edit" aria-label="edit species">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
-               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 20h9"></path>
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
           </svg>
         </button>
-        <span class="lb-close" id="lb-close" tabindex="0">[ close ]</span>
         <div class="lb-arrows">
           <button id="lb-prev" aria-label="previous photo">← prev</button>
           <button id="lb-next" aria-label="next photo">next →</button>
@@ -102,32 +118,45 @@
       <aside class="lb-edit-panel" id="lb-edit-panel" hidden aria-label="species editor">
         <form class="lb-edit-form" id="lb-edit-form" autocomplete="off">
           <div class="lb-edit-header">
-            <span class="lb-edit-title">edit species</span>
+            <span class="lb-edit-title" id="lb-edit-title">edit</span>
             <button type="button" class="lb-edit-close" id="lb-edit-close" aria-label="close editor">×</button>
           </div>
           <div class="lb-edit-fields">
             <label>species ID
               <input type="text" name="species_id" required spellcheck="false" autocapitalize="off">
             </label>
-            <label>name (ja)
+            <!-- animals 用 -->
+            <label data-mode="animals">name (ja)
               <input type="text" name="name_ja">
             </label>
-            <label>name (en)
+            <label data-mode="animals">name (en)
               <input type="text" name="name_en">
             </label>
-            <label>author
-              <input type="text" name="author">
-            </label>
-            <label>year
-              <input type="text" name="year">
-            </label>
-            <label>habitat
+            <label data-mode="animals">habitat
               <input type="text" name="habitat">
             </label>
-            <label>size
+            <label data-mode="animals">size
               <input type="text" name="size">
             </label>
-            <label>features
+            <!-- arts 用 -->
+            <label data-mode="arts">title
+              <input type="text" name="title">
+            </label>
+            <label data-mode="arts">artist ID
+              <input type="text" name="artist" spellcheck="false" autocapitalize="off" placeholder="artists.json のキー">
+            </label>
+            <label data-mode="arts">co-artist ID（共作の相手）
+              <input type="text" name="co_artist" spellcheck="false" autocapitalize="off"
+                placeholder="共作なら artists.json のキー">
+            </label>
+            <label data-mode="arts">year
+              <input type="text" name="year">
+            </label>
+            <label data-mode="arts">medium
+              <input type="text" name="medium" placeholder="例: アクリル・キャンバス">
+            </label>
+            <!-- features は animals のみ（arts は description に集約） -->
+            <label data-mode="animals">features
               <textarea name="features" rows="4" placeholder="1 行 1 項目"></textarea>
             </label>
             <label>description
@@ -141,6 +170,7 @@
           </div>
         </form>
       </aside>
+
     </div>
   </div>
 

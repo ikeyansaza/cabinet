@@ -4,11 +4,13 @@
   'use strict';
 
   /* ── state ── */
-  let allPhotos  = [];
-  let speciesMap = {};
-  let visible    = [];
-  let current    = 0;
-  let activeTag  = 'all';
+  let allPhotos       = [];
+  let speciesMap      = {};
+  let artistsMap      = {};         // arts カテゴリのみで使う作家マスタ
+  let currentCategory = null;       // 'animals' | 'arts' | その他カテゴリ名
+  let visible         = [];
+  let current         = 0;
+  let activeTag       = 'all';
   // 編集パネルを開いたときの元の species エントリ。保存時に spread して
   // フォームに無いフィールド（model 等）を保持する。
   let editingOriginalEntry = {};
@@ -43,6 +45,7 @@
   const headerMeta = document.getElementById('header-meta');
   const lb        = document.getElementById('lb');
   const lbImg     = document.getElementById('lb-img');
+  const lbImgWrap = document.getElementById('lb-img-wrap');
   const lbTitle   = document.getElementById('lb-title');
   const lbTags    = document.getElementById('lb-tags');
   const lbExif    = document.getElementById('lb-exif');
@@ -64,10 +67,33 @@
   const lbEdit       = document.getElementById('lb-edit');
   const lbEditPanel  = document.getElementById('lb-edit-panel');
   const lbEditForm   = document.getElementById('lb-edit-form');
+  const lbEditTitle  = document.getElementById('lb-edit-title');
   const lbEditCancel = document.getElementById('lb-edit-cancel');
   const lbEditClose  = document.getElementById('lb-edit-close');
   const lbEditSave   = document.getElementById('lb-edit-save');
   const lbEditStatus = document.getElementById('lb-edit-status');
+
+  /* ── artist (arts カテゴリのみ) ──
+     UI からの編集は species 側に統合（species 編集パネルから artist ID を切替できる）。
+     作家マスタの bio 等を直接編集したい場合は artists.json を手で編集する。 */
+  const artistBlocks = [
+    {
+      root: document.getElementById('lb-artist'),
+      name: document.getElementById('lb-artist-name'),
+      nameEn: document.getElementById('lb-artist-name-en'),
+      meta: document.getElementById('lb-artist-meta'),
+      features: document.getElementById('lb-artist-features'),
+      bio: document.getElementById('lb-artist-bio'),
+    },
+    {
+      root: document.getElementById('lb-artist-co'),
+      name: document.getElementById('lb-artist-co-name'),
+      nameEn: document.getElementById('lb-artist-co-name-en'),
+      meta: document.getElementById('lb-artist-co-meta'),
+      features: document.getElementById('lb-artist-co-features'),
+      bio: document.getElementById('lb-artist-co-bio'),
+    },
+  ];
 
   /* ── grid のクリック / キー操作は delegation で受ける（カード再生成時にリスナ重複しないように） ── */
   grid.addEventListener('click', (e) => {
@@ -135,6 +161,7 @@
   async function chooseCategory(T, category) {
     try {
       await T.invoke('set_current_category', { category });
+      currentCategory = category;
       categoryTabs.querySelectorAll('.cat-tab').forEach(b => {
         b.classList.toggle('active', b.dataset.cat === category);
       });
@@ -146,12 +173,16 @@
 
   async function loadAll(T) {
     try {
-      const [photos, species] = await Promise.all([
+      const [photos, species, artists, category] = await Promise.all([
         T.invoke('read_photos_json'),
         T.invoke('read_species_json'),
+        T.invoke('read_artists_json'),
+        T.invoke('get_current_category'),
       ]);
-      allPhotos  = photos || [];
-      speciesMap = species || {};
+      allPhotos       = photos || [];
+      speciesMap      = species || {};
+      artistsMap      = artists || {};
+      currentCategory = category || null;
       picker.hidden = true;
       grid.hidden = false;
       // カテゴリ / フォルダ切替時はファイル名衝突によるカード誤再利用を避けるため明示クリア
@@ -230,15 +261,22 @@
       await rescan(T);
     });
     await T.listen('photos-updated', async () => {
-      // 自分で species.json を書き換えたときも watcher が発火する。
-      // photos と species 両方を再読込して状態を同期させる。
-      const [photos, species] = await Promise.all([
+      // 自分で species.json / artists.json を書き換えたときも watcher が発火する。
+      // 全部まとめて再読込して状態を同期させる。
+      const [photos, species, artists] = await Promise.all([
         T.invoke('read_photos_json'),
         T.invoke('read_species_json'),
+        T.invoke('read_artists_json'),
       ]);
       allPhotos = photos || [];
       speciesMap = species || {};
+      artistsMap = artists || {};
       applyFilter(activeTag);
+      // ライトボックスが開いていれば作家情報の更新も反映
+      if (lb.classList.contains('open')) {
+        const p = visible[current];
+        if (p) renderSpecies(p.species);
+      }
     });
   }
 
@@ -248,7 +286,8 @@
     applyFilter('all');
 
     const total = allPhotos.length;
-    headerMeta.textContent = `${total} photos · animals`;
+    const catLabel = currentCategory || '—';
+    headerMeta.textContent = `${total} photos · ${catLabel}`;
   }
 
   /* ── tag buttons ── */
@@ -315,8 +354,18 @@
     grid.replaceChildren(...next);
   }
 
+  function getCardTitle(photo) {
+    if (photo.title) return photo.title;
+    const sp = speciesMap[photo.species];
+    if (!sp) return photo.file;
+    if (currentCategory === 'arts') {
+      return sp.title || artistsMap[sp.artist]?.name || photo.file;
+    }
+    return sp.name_ja || photo.file;
+  }
+
   function createCard(photo, i) {
-    const cardTitle = photo.title || speciesMap[photo.species]?.name_ja || photo.file;
+    const cardTitle = getCardTitle(photo);
     const metaParts = [...(photo.tags || []), photo.date].filter(Boolean);
 
     const card = document.createElement('div');
@@ -348,7 +397,7 @@
   }
 
   function updateCardInfo(card, photo) {
-    const cardTitle = photo.title || speciesMap[photo.species]?.name_ja || photo.file;
+    const cardTitle = getCardTitle(photo);
     const metaText = [...(photo.tags || []), photo.date].filter(Boolean).join(' · ');
     card.setAttribute('aria-label', cardTitle);
     const titleEl = card.querySelector('.card-title');
@@ -365,8 +414,11 @@
     current = i;
     const p = visible[i];
 
+    // 写真を切り替えるたびにズーム状態は破棄する（前の写真の倍率が残ると混乱するため）
+    resetZoom();
+
     photoUrl(p.file).then(url => { lbImg.src = url; });
-    lbImg.alt = p.title || speciesMap[p.species]?.name_ja || p.file;
+    lbImg.alt = getCardTitle(p);
 
     if (p.title) {
       lbTitle.textContent = p.title;
@@ -405,6 +457,7 @@
     // species 切替時は 3D ビューアの状態を毎回リセットする
     // （別個体に遷移したのに前のモデルが展開されたままだと混乱するため）
     reset3d();
+    artistBlocks.forEach(b => { b.root.hidden = true; });
 
     if (!speciesId) {
       lbSpecies.hidden = true;
@@ -417,35 +470,118 @@
       return;
     }
 
+    if (currentCategory === 'arts') {
+      renderArtwork(sp);
+    } else {
+      renderAnimal(sp);
+    }
+  }
+
+  // animals（および未指定カテゴリ）向け。従来挙動と同じ。
+  function renderAnimal(sp) {
     lbSpNameJa.textContent = sp.name_ja || '';
     lbSpNameEn.textContent = sp.name_en || '';
 
     const metaParts = [];
-    if (sp.author)  metaParts.push(sp.author);
-    if (sp.year)    metaParts.push(sp.year);
     if (sp.habitat) metaParts.push(sp.habitat);
     if (sp.size)    metaParts.push(sp.size);
     lbSpMeta.textContent = metaParts.join(' · ');
     lbSpMeta.hidden = metaParts.length === 0;
 
-    lbSpFeatures.innerHTML = '';
-    if (Array.isArray(sp.features) && sp.features.length > 0) {
-      sp.features.forEach(f => {
-        const li = document.createElement('li');
-        li.textContent = f;
-        lbSpFeatures.appendChild(li);
-      });
-      lbSpFeatures.hidden = false;
-    } else {
-      lbSpFeatures.hidden = true;
-    }
+    renderFeaturesInto(lbSpFeatures, sp.features);
 
     lbSpDescription.textContent = sp.description || '';
     lbSpDescription.hidden = !sp.description;
 
     setupModelToggle(sp.model);
-
     lbSpecies.hidden = false;
+  }
+
+  // arts 向け。作品エントリ + 参照する作家エントリを併記する。
+  // animals 側と違って features は出さない（メタ情報過多で description と冗長になるため）。
+  function renderArtwork(sp) {
+    // 作品: title を name_ja スロット、name_en は表示しない（多言語タイトルは将来必要なら拡張）
+    lbSpNameJa.textContent = sp.title || '';
+    lbSpNameEn.textContent = '';
+
+    const primaryArtist  = sp.artist    ? artistsMap[sp.artist]    : null;
+    const coArtist       = sp.co_artist ? artistsMap[sp.co_artist] : null;
+
+    const metaParts = [];
+    const primaryLabel = primaryArtist?.name || sp.artist;
+    const coLabel      = coArtist?.name      || sp.co_artist;
+    if (primaryLabel && coLabel) metaParts.push(`${primaryLabel} × ${coLabel}`);
+    else if (primaryLabel)       metaParts.push(primaryLabel);
+    if (sp.year)   metaParts.push(sp.year);
+    if (sp.medium) metaParts.push(sp.medium);
+    lbSpMeta.textContent = metaParts.join(' · ');
+    lbSpMeta.hidden = metaParts.length === 0;
+
+    // arts では features は表示しない
+    lbSpFeatures.innerHTML = '';
+    lbSpFeatures.hidden = true;
+
+    lbSpDescription.textContent = sp.description || '';
+    lbSpDescription.hidden = !sp.description;
+
+    // arts では 3D は未対応。固定で隠す。
+    lb3d.hidden = true;
+    lbSpecies.hidden = false;
+
+    // 作家ブロック（主作家／共作）
+    renderArtistInto(artistBlocks[0], sp.artist,    primaryArtist);
+    renderArtistInto(artistBlocks[1], sp.co_artist, coArtist);
+  }
+
+  function renderArtistInto(block, artistId, artist) {
+    if (!artistId) {
+      block.root.hidden = true;
+      return;
+    }
+    // 作家ブロックでは features は表示しない（bio に集約）
+    block.features.innerHTML = '';
+    block.features.hidden = true;
+
+    if (!artist) {
+      block.name.textContent = artistId;
+      block.nameEn.textContent = '';
+      block.nameEn.hidden = true;
+      block.meta.textContent = '';
+      block.meta.hidden = true;
+      block.bio.textContent = '';
+      block.bio.hidden = true;
+      block.root.hidden = false;
+      return;
+    }
+    block.name.textContent = artist.name || artistId;
+    block.nameEn.textContent = artist.name_en || '';
+    block.nameEn.hidden = !artist.name_en;
+
+    const metaParts = [];
+    if (artist.born && artist.died) metaParts.push(`${artist.born}–${artist.died}`);
+    else if (artist.born) metaParts.push(`${artist.born}–`);
+    else if (artist.died) metaParts.push(`–${artist.died}`);
+    block.meta.textContent = metaParts.join(' · ');
+    block.meta.hidden = metaParts.length === 0;
+
+    block.bio.textContent = artist.bio || '';
+    block.bio.hidden = !artist.bio;
+
+    block.root.hidden = false;
+  }
+
+  function renderFeaturesInto(ul, features) {
+    ul.innerHTML = '';
+    if (Array.isArray(features) && features.length > 0) {
+      features.forEach(f => {
+        const li = document.createElement('li');
+        li.textContent = f;
+        ul.appendChild(li);
+      });
+      ul.hidden = false;
+    } else {
+      ul.hidden = true;
+    }
   }
 
   /* ── 3D model viewer ── */
@@ -513,7 +649,118 @@
     lb.classList.remove('open');
     lbImg.src = '';
     reset3d();
+    resetZoom();
   }
+
+  /* ── zoom & pan ──
+     ホイール/ピンチでズーム（ピンチは Mac では wheel + ctrlKey として届く）。
+     ダブルクリックで 1x ↔ ZOOM_DBLCLICK を切替。ズーム中はドラッグでパン。
+     openLB / closeLB のたびにリセットする。 */
+  const ZOOM_MIN = 1;
+  const ZOOM_MAX = 4;
+  const ZOOM_DBLCLICK = 2;
+  let zoomScale = 1;
+  let zoomTx = 0;
+  let zoomTy = 0;
+  let panning = false;
+  let panStartX = 0;
+  let panStartY = 0;
+  let panOriginTx = 0;
+  let panOriginTy = 0;
+
+  function applyZoomTransform() {
+    lbImg.style.transform = `translate(${zoomTx}px, ${zoomTy}px) scale(${zoomScale})`;
+    lbImgWrap.classList.toggle('zoomed', zoomScale > 1);
+  }
+
+  function resetZoom() {
+    zoomScale = 1;
+    zoomTx = 0;
+    zoomTy = 0;
+    panning = false;
+    lbImgWrap.classList.remove('panning');
+    applyZoomTransform();
+  }
+
+  // clientX/Y を image 中心からのオフセットに変換し、その点を固定したままスケールを変える。
+  // ホイール zoom で「カーソル下の点が動かない」挙動になる。
+  function zoomAtClientPoint(clientX, clientY, factor) {
+    const rect = lbImg.getBoundingClientRect();
+    const cx = clientX - rect.left - rect.width / 2;
+    const cy = clientY - rect.top  - rect.height / 2;
+    const oldScale = zoomScale;
+    const newScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, oldScale * factor));
+    if (newScale === oldScale) return;
+    zoomTx = cx - (cx - zoomTx) * (newScale / oldScale);
+    zoomTy = cy - (cy - zoomTy) * (newScale / oldScale);
+    zoomScale = newScale;
+    if (zoomScale <= ZOOM_MIN + 0.001) {
+      zoomScale = 1;
+      zoomTx = 0;
+      zoomTy = 0;
+    }
+    applyZoomTransform();
+  }
+
+  function zoomAtCenter(factor) {
+    const rect = lbImgWrap.getBoundingClientRect();
+    zoomAtClientPoint(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+  }
+
+  lbImgWrap.addEventListener('wheel', (e) => {
+    // 編集パネルが開いてるときに誤操作で背景がズームしないように
+    if (!lbEditPanel.hidden) return;
+    e.preventDefault();
+    // Mac トラックパッドはホイールイベントを高頻度で吐くので係数は控えめに。
+    // ピンチ（wheel + ctrlKey）も同じ扱い。
+    const factor = e.deltaY < 0 ? 1.03 : 1 / 1.03;
+    zoomAtClientPoint(e.clientX, e.clientY, factor);
+  }, { passive: false });
+
+  lbImgWrap.addEventListener('dblclick', (e) => {
+    if (!lbEditPanel.hidden) return;
+    e.preventDefault();
+    if (zoomScale > 1) {
+      resetZoom();
+    } else {
+      // 1x のとき: クリックした点を中心に ZOOM_DBLCLICK までズーム
+      zoomAtClientPoint(e.clientX, e.clientY, ZOOM_DBLCLICK);
+    }
+  });
+
+  // mousedown のデフォルト動作（text selection / focus シフト）を抑止する。
+  // dblclick で近隣要素にフォーカスが飛んだり、ハイライトが走るのを防ぐ。
+  // pointerdown とは別イベントなので、パン用の pointerdown ハンドラには影響しない。
+  lbImgWrap.addEventListener('mousedown', (e) => e.preventDefault());
+
+  lbImgWrap.addEventListener('pointerdown', (e) => {
+    if (zoomScale <= 1) return;       // 1x のときはパンしない
+    if (e.button !== 0) return;       // 左ボタンのみ
+    panning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panOriginTx = zoomTx;
+    panOriginTy = zoomTy;
+    lbImgWrap.classList.add('panning');
+    try { lbImgWrap.setPointerCapture(e.pointerId); } catch { /* iOS Safari 等で失敗しても致命的ではない */ }
+    e.preventDefault();
+  });
+
+  lbImgWrap.addEventListener('pointermove', (e) => {
+    if (!panning) return;
+    zoomTx = panOriginTx + (e.clientX - panStartX);
+    zoomTy = panOriginTy + (e.clientY - panStartY);
+    applyZoomTransform();
+  });
+
+  function endPan() {
+    if (!panning) return;
+    panning = false;
+    lbImgWrap.classList.remove('panning');
+  }
+  lbImgWrap.addEventListener('pointerup', endPan);
+  lbImgWrap.addEventListener('pointercancel', endPan);
+  lbImgWrap.addEventListener('pointerleave', endPan);
 
   function navigate(dir) {
     if (!lbEditPanel.hidden) return; // 編集中はナビ無効。意図せぬ離脱で入力を失わないため
@@ -527,6 +774,12 @@
   }
 
   lbClose.addEventListener('click', closeLB);
+  lbClose.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      closeLB();
+    }
+  });
   lbPrev.addEventListener('click',  () => navigate(-1));
   lbNext.addEventListener('click',  () => navigate(+1));
 
@@ -538,13 +791,22 @@
   document.addEventListener('keydown', e => {
     if (!lb.classList.contains('open')) return;
     if (e.key === 'Escape') {
+      // ESC は内側の状態から順にひとつずつ解除する:
+      //   1. 編集パネル開いていれば閉じる
+      //   2. ズームしていれば 1x に戻す
+      //   3. それ以外でライトボックスを閉じる
       if (!lbEditPanel.hidden) closeEditPanel();
+      else if (zoomScale > 1) resetZoom();
       else closeLB();
       return;
     }
-    if (!lbEditPanel.hidden) return; // 編集中は ← → を無効化
+    if (!lbEditPanel.hidden) return; // 編集中は ← → / ズームキーを無効化
     if (e.key === 'ArrowLeft')  navigate(-1);
     if (e.key === 'ArrowRight') navigate(+1);
+    // ズーム: + / = で拡大, - で縮小, 0 でリセット
+    if (e.key === '+' || e.key === '=') { zoomAtCenter(1.2); e.preventDefault(); }
+    if (e.key === '-') { zoomAtCenter(1 / 1.2); e.preventDefault(); }
+    if (e.key === '0') { resetZoom(); e.preventDefault(); }
   });
 
   /* ── edit panel ── */
@@ -553,27 +815,52 @@
   lbEditClose.addEventListener('click', closeEditPanel);
   lbEditForm.addEventListener('submit', onEditSubmit);
 
+  // 現在のカテゴリに応じて表示するモードを返す（既知カテゴリ以外は animals 扱い）
+  function editMode() {
+    return currentCategory === 'arts' ? 'arts' : 'animals';
+  }
+
+  function applyEditFormMode(mode) {
+    lbEditPanel.dataset.mode = mode;
+    lbEditTitle.textContent = mode === 'arts' ? 'edit artwork' : 'edit species';
+    lbEditPanel.querySelectorAll('label[data-mode]').forEach(label => {
+      label.hidden = label.dataset.mode !== mode;
+    });
+  }
+
   function openEditPanel() {
     const p = visible[current];
     if (!p) return;
+    const mode = editMode();
     const speciesId = p.species || slugifyFilename(p.file);
     const sp = (p.species && speciesMap[p.species]) || {};
     editingOriginalEntry = sp;
 
+    applyEditFormMode(mode);
+
     const f = lbEditForm.elements;
     f.species_id.value = speciesId;
-    f.name_ja.value    = sp.name_ja || '';
-    f.name_en.value    = sp.name_en || '';
-    f.author.value     = sp.author  || '';
-    f.year.value       = sp.year    || '';
-    f.habitat.value    = sp.habitat || '';
-    f.size.value       = sp.size    || '';
-    f.features.value   = (sp.features || []).join('\n');
+
+    if (mode === 'arts') {
+      f.title.value     = sp.title     || '';
+      f.artist.value    = sp.artist    || '';
+      f.co_artist.value = sp.co_artist || '';
+      f.year.value      = sp.year      || '';
+      f.medium.value    = sp.medium    || '';
+      f.features.value  = '';
+    } else {
+      f.name_ja.value  = sp.name_ja || '';
+      f.name_en.value  = sp.name_en || '';
+      f.habitat.value  = sp.habitat || '';
+      f.size.value     = sp.size    || '';
+      f.features.value = (sp.features || []).join('\n');
+    }
     f.description.value = sp.description || '';
 
     setEditStatus('', null);
     lbEditPanel.hidden = false;
-    f.name_ja.focus();
+    if (mode === 'arts') f.title.focus();
+    else f.name_ja.focus();
   }
 
   function closeEditPanel() {
@@ -584,6 +871,7 @@
   async function onEditSubmit(e) {
     e.preventDefault();
     const f = lbEditForm.elements;
+    const mode = lbEditPanel.dataset.mode || editMode();
     const speciesId = f.species_id.value.trim();
     if (!speciesId) {
       setEditStatus('species ID を入力してください', false);
@@ -593,19 +881,30 @@
 
     // 元エントリを spread して、フォームに無いフィールド（model 等）を保持
     const entry = { ...editingOriginalEntry };
-    setOrDelete(entry, 'name_ja', f.name_ja.value.trim());
-    setOrDelete(entry, 'name_en', f.name_en.value.trim());
-    setOrDelete(entry, 'author',  f.author.value.trim());
-    setOrDelete(entry, 'year',    f.year.value.trim());
-    setOrDelete(entry, 'habitat', f.habitat.value.trim());
-    setOrDelete(entry, 'size',    f.size.value.trim());
 
-    const features = f.features.value
-      .split('\n')
-      .map(s => s.trim())
-      .filter(Boolean);
-    if (features.length > 0) entry.features = features;
-    else delete entry.features;
+    if (mode === 'arts') {
+      setOrDelete(entry, 'title',     f.title.value.trim());
+      setOrDelete(entry, 'artist',    f.artist.value.trim());
+      setOrDelete(entry, 'co_artist', f.co_artist.value.trim());
+      setOrDelete(entry, 'year',      f.year.value.trim());
+      setOrDelete(entry, 'medium',    f.medium.value.trim());
+      // arts では features は使わない & animals 用フィールドが残っていたら掃除
+      ['features', 'name_ja', 'name_en', 'habitat', 'size'].forEach(k => delete entry[k]);
+    } else {
+      setOrDelete(entry, 'name_ja', f.name_ja.value.trim());
+      setOrDelete(entry, 'name_en', f.name_en.value.trim());
+      setOrDelete(entry, 'habitat', f.habitat.value.trim());
+      setOrDelete(entry, 'size',    f.size.value.trim());
+      // animals では arts 用のフィールドが残っていたら掃除する
+      ['title', 'artist', 'co_artist', 'year', 'medium'].forEach(k => delete entry[k]);
+
+      const features = f.features.value
+        .split('\n')
+        .map(s => s.trim())
+        .filter(Boolean);
+      if (features.length > 0) entry.features = features;
+      else delete entry.features;
+    }
 
     setOrDelete(entry, 'description', f.description.value.trim());
 
