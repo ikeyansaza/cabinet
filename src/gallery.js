@@ -25,6 +25,14 @@
     return T.convertFileSrc(abs);
   }
 
+  async function modelUrl(relPath) {
+    const T = await tauri();
+    const dir = await T.invoke('get_active_dir');
+    if (!dir) return relPath;
+    const abs = `${dir}/${relPath}`.replace(/\\/g, '/');
+    return T.convertFileSrc(abs);
+  }
+
   /* ── elements ── */
   const grid      = document.getElementById('grid');
   const filters   = document.getElementById('filters');
@@ -44,6 +52,9 @@
   const lbSpMeta        = document.getElementById('lb-species-meta');
   const lbSpFeatures    = document.getElementById('lb-species-features');
   const lbSpDescription = document.getElementById('lb-species-description');
+  const lb3d            = document.getElementById('lb-3d');
+  const lb3dToggle      = document.getElementById('lb-3d-toggle');
+  const lb3dViewer      = document.getElementById('lb-3d-viewer');
   const picker        = document.getElementById('picker');
   const pickerBtn     = document.getElementById('picker-btn');
   const categoryTabs   = document.getElementById('category-tabs');
@@ -375,6 +386,10 @@
 
   /* ── species (encyclopedia) block ── */
   function renderSpecies(speciesId) {
+    // species 切替時は 3D ビューアの状態を毎回リセットする
+    // （別個体に遷移したのに前のモデルが展開されたままだと混乱するため）
+    reset3d();
+
     if (!speciesId) {
       lbSpecies.hidden = true;
       return;
@@ -410,12 +425,76 @@
     lbSpDescription.textContent = sp.description || '';
     lbSpDescription.hidden = !sp.description;
 
+    setupModelToggle(sp.model);
+
     lbSpecies.hidden = false;
   }
+
+  /* ── 3D model viewer ── */
+  let current3dModel = null;
+
+  function setupModelToggle(modelPath) {
+    if (!modelPath) {
+      lb3d.hidden = true;
+      current3dModel = null;
+      return;
+    }
+    current3dModel = modelPath;
+    lb3dToggle.textContent = '[ view in 3D ]';
+    lb3dToggle.disabled = false;
+    lb3d.hidden = false;
+  }
+
+  function reset3d() {
+    // <model-viewer> は GPU リソースを掴むので DOM から確実に外す
+    lb3dViewer.replaceChildren();
+    lb3dViewer.hidden = true;
+    lb3dToggle.textContent = '[ view in 3D ]';
+  }
+
+  async function expand3d() {
+    if (!current3dModel) return;
+    const url = await modelUrl(current3dModel);
+
+    const mv = document.createElement('model-viewer');
+    mv.setAttribute('src', url);
+    mv.setAttribute('camera-controls', '');
+    mv.setAttribute('auto-rotate', '');
+    mv.setAttribute('auto-rotate-delay', '3000');
+    mv.setAttribute('interaction-prompt', 'none');
+    mv.setAttribute('shadow-intensity', '0');
+    mv.setAttribute('exposure', '1.0');
+    mv.addEventListener('error', () => {
+      lb3dViewer.replaceChildren();
+      const err = document.createElement('div');
+      err.className = 'lb-3d-error';
+      err.textContent = '[ 3D model unavailable ]';
+      lb3dViewer.appendChild(err);
+    });
+
+    lb3dViewer.replaceChildren(mv);
+    lb3dViewer.hidden = false;
+    lb3dToggle.textContent = '[ hide 3D ]';
+  }
+
+  function collapse3d() {
+    lb3dViewer.replaceChildren();
+    lb3dViewer.hidden = true;
+    lb3dToggle.textContent = '[ view in 3D ]';
+  }
+
+  lb3dToggle.addEventListener('click', () => {
+    if (lb3dViewer.hidden) {
+      expand3d();
+    } else {
+      collapse3d();
+    }
+  });
 
   function closeLB() {
     lb.classList.remove('open');
     lbImg.src = '';
+    reset3d();
   }
 
   function navigate(dir) {

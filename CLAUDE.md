@@ -32,7 +32,9 @@ album/
 │   ├── index.html
 │   ├── gallery.js
 │   ├── tauri.js                # Tauri API 薄ラッパ
-│   └── style.css
+│   ├── style.css
+│   └── lib/                    # vendor ライブラリ（バンドラ無しの素同梱）
+│       └── model-viewer.min.js # @google/model-viewer の dist（3D 表示用）
 ├── scripts/gen_photos.py       # CLI 用に維持。Tauri 化後の primary は rescan コマンド
 ├── docs/
 └── README.md
@@ -127,7 +129,8 @@ album/
       "光沢のある青緑の背面と橙色の腹",
       "水面上をホバリングしてから飛び込む独特の捕食"
     ],
-    "description": "「渓流の宝石」と呼ばれる..." // 自由文（任意・複数行可）
+    "description": "「渓流の宝石」と呼ばれる...", // 自由文（任意・複数行可）
+    "model":   "models/kingfisher.glb"        // 3D モデルへの相対パス（任意）
   }
 }
 ```
@@ -136,6 +139,7 @@ album/
 - `features` は配列。1 項目あたり 1 行で表示される
 - `description` は `white-space: pre-wrap` で改行が保持される
 - `species.json` 自体が無くてもギャラリーは動作する（warn のみ）
+- `model` はカテゴリフォルダからの相対パス。指定があるとライトボックスに `[ view in 3D ]` ボタンが出て、押下で `<model-viewer>` がインライン展開される。推奨配置は `<category>/models/<species_id>.glb`
 
 ---
 
@@ -204,3 +208,4 @@ npm run tauri build
 - `species.json` の値で塗り（背景色）や新色を導入しない（mokomoko デザインシステム遵守）
 - 写真ファイルや photos.json をリポジトリに含めない（個人データなので）
 - macOS 以外への配布を想定しない（YAGNI）
+- `.glb` などの 3D モデルファイルをリポジトリに含めない（個人データ。`src/lib/model-viewer.min.js` のみ vendor として例外的に管理）

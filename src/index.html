@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script type="module" src="lib/model-viewer.min.js"></script>
 </head>
 
 <body>
@@ -70,6 +71,10 @@
             <div class="lb-species-meta" id="lb-species-meta"></div>
             <ul class="lb-species-features" id="lb-species-features"></ul>
             <div class="lb-species-description" id="lb-species-description"></div>
+            <div class="lb-3d" id="lb-3d" hidden>
+              <button class="lb-3d-toggle" id="lb-3d-toggle" type="button">[ view in 3D ]</button>
+              <div class="lb-3d-viewer" id="lb-3d-viewer" hidden></div>
+            </div>
           </div>
           <div class="lb-photo-info">
             <div class="lb-title" id="lb-title" hidden></div>
