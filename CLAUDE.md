@@ -51,6 +51,7 @@ album/
 | カテゴリ（サブフォルダ） | parent_dir 直下の `animals/` `arts/` `food/` など |
 | 写真ファイル | カテゴリフォルダの中（例 `~/Pictures/album/animals/IMG_5621.JPG`） |
 | `photos.json` / `species.json` | 各カテゴリフォルダの中 |
+| `artists.json` | arts カテゴリのみ。フォルダ内に置く |
 | アプリ状態（parent_dir / current_category / window 位置） | `~/Library/Application Support/com.naofumiikeda.album/` |
 
 カテゴリは parent_dir 直下のサブフォルダで「画像ファイルを 1 枚以上含むもの」が自動列挙される。
@@ -116,7 +117,13 @@ album/
 
 ## species.json スキーマ
 
-種 ID をキーとした辞書。`photos.json` の `species` フィールドの値と一致させる。
+`species.json` のスキーマはカテゴリで分かれる。`photos.json` の `species` フィールドはこのキーを参照する。
+ライトボックスは `current_category` を見てどちらのスキーマで描画するかを判定する。`animals` 以外で
+`arts` 以外のカテゴリ（例: `food`）は当面 animals スキーマと同じレイアウトで描画される。
+
+### animals カテゴリ
+
+種 ID をキーとした辞書。
 
 ```json
 {
@@ -135,21 +142,75 @@ album/
 }
 ```
 
+### arts カテゴリ
+
+作品 ID をキーとした辞書。**作品個別の情報のみ**を持ち、作家紹介は `artists.json` 側で管理する。
+
+```json
+{
+  "img_6208": {
+    "title":     "作品タイトル",                    // 作品名（任意）
+    "artist":    "yoshitomo_nara",              // artists.json のキー（任意）
+    "co_artist": "hiroshi_sugito",              // 共作の相手。artists.json のキー（任意）
+    "year":      "2002",                        // 制作年（任意・自由記述）
+    "medium":    "アクリル・キャンバス",            // 技法・素材（任意）
+    "description": "(この作品個別の解説)"            // 自由文（任意・複数行可）
+  }
+}
+```
+
+arts では `features`（箇条書き）はライトボックスに描画しないので使わない。情報は `description`
+に集約する。animals 側の `features` のみ UI に出る。
+
+`co_artist` を指定すると、ライトボックスに作家ブロックが 2 つ並んで表示される。
+作家マスタ（名前・bio 等）の編集は UI からは行わない方針。`artists.json` を直接編集する
+（watcher が変更を検知して自動でリロードする）。`species.json` 側の `artist` / `co_artist` ID
+の付け替えだけはライトボックスの鉛筆ボタンの編集パネルから行える。
+
+### 共通ルール
+
 - 全フィールド任意。書かなければライトボックスで該当パートが省略される
 - `features` は配列。1 項目あたり 1 行で表示される
 - `description` は `white-space: pre-wrap` で改行が保持される
 - `species.json` 自体が無くてもギャラリーは動作する（warn のみ）
-- `model` はカテゴリフォルダからの相対パス。指定があるとライトボックスに `[ view in 3D ]` ボタンが出て、押下で `<model-viewer>` がインライン展開される。推奨配置は `<category>/models/<species_id>.glb`
+- `model` は animals 用。指定があるとライトボックスに `[ view in 3D ]` ボタンが出る。推奨配置は `<category>/models/<species_id>.glb`
+
+---
+
+## artists.json スキーマ（arts カテゴリ専用）
+
+作家 ID をキーとした辞書。`arts/species.json` の `artist` フィールドはこのキーを参照する。
+作家紹介を作品エントリに重複させないために分離している。
+
+```json
+{
+  "yoshitomo_nara": {
+    "name":    "奈良美智",                 // 表示名（任意・通常は和名）
+    "name_en": "Yoshitomo Nara",         // 英名（任意）
+    "born":    "1959",                   // 生年（任意・文字列）
+    "died":    "1996",                   // 没年（任意・文字列、存命なら省略）
+    "bio":     "青森県弘前市出身の現代美術家..."  // 自由文（任意・複数行可）
+  }
+}
+```
+
+作家の `features`（箇条書き）はライトボックスに描画しないので使わない。情報は `bio` に集約する。
+
+- 全フィールド任意。書かなければライトボックスの作家ブロックの該当パートが省略される
+- 作品エントリに紐づく `artist` ID が `artists.json` に未登録でもエラーにはならない（ID だけ表示される）
+- arts カテゴリ以外には不要
 
 ---
 
 ## gallery.js の設計方針
 
 - IIFE `(function(){ 'use strict'; ... })()` でグローバル汚染なし
-- `fetch('photos.json')` と `fetch('species.json')` を `Promise.all` で並列取得。エラー時はグリッドにメッセージ表示（species.json は欠落でも warn のみで続行）
+- `read_photos_json` / `read_species_json` / `read_artists_json` / `get_current_category` を `Promise.all` で並列取得。エラー時はグリッドにメッセージ表示（json 群は欠落でも続行）
+- `currentCategory` を保持し、`renderSpecies` は `'arts'` で `renderArtwork`、それ以外で `renderAnimal` に分岐する
+- arts は作品エントリ + 参照する `artists.json` エントリを併記する。作家マスタの編集 UI は持たず、`artists.json` を直接編集する想定
 - タグボタンは `photos.json` の内容から動的生成（ハードコードしない）
 - 画像は `loading="lazy"` + `img.loading / img.loaded` クラスで遅延ロード
-- XSS 対策: DOM に挿入する文字列は `esc()` または `textContent` を使う。図鑑ブロック（renderSpecies）は `textContent` のみ使用
+- XSS 対策: DOM に挿入する文字列は `esc()` または `textContent` を使う。図鑑ブロック（renderAnimal / renderArtwork / renderArtist）は `textContent` のみ使用
 
 **変更時の注意：**
 

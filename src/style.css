@@ -230,6 +230,7 @@ button.tag.active {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;  /* .lb-close を右上に absolute 配置するための基準 */
 }
 
 .lb-content {
@@ -256,7 +257,20 @@ button.tag.active {
   min-height: 240px;
   max-height: 60vh;
   overflow: hidden;
+  cursor: zoom-in;
+  /* ホイールスクロールがブラウザに渡らないように。pinch-zoom も JS 側で処理する */
+  touch-action: none;
+  /* dblclick で近隣テキストの選択ハイライトが走るのを抑止 */
+  user-select: none;
+  -webkit-user-select: none;
+  /* フォーカスリング不要（自身に tabindex は付けない方針）。ブラウザ側がデフォで描いた場合の保険 */
+  outline: none;
 }
+.lb-img-wrap:focus,
+.lb-img-wrap:focus-visible { outline: none; }
+
+.lb-img-wrap.zoomed { cursor: grab; }
+.lb-img-wrap.panning { cursor: grabbing; }
 
 @media (min-width: 768px) {
   .lb-img-wrap {
@@ -272,7 +286,14 @@ button.tag.active {
   max-height: 60vh;
   object-fit: contain;
   display: block;
+  transform-origin: center center;
+  transition: transform .12s ease-out;
+  user-select: none;
+  -webkit-user-drag: none;
 }
+
+/* ドラッグ中はトランジションを切る（カクつき防止） */
+.lb-img-wrap.panning #lb-img { transition: none; }
 
 @media (min-width: 768px) {
   #lb-img {
@@ -280,10 +301,11 @@ button.tag.active {
   }
 }
 
-/* ── lightbox body ── */
+/* ── lightbox body ──
+   border-bottom は持たない: その下にある .lb-nav の border-top と重なって
+   二重線になるため。区切りは .lb-nav 側に任せる。 */
 .lb-body {
   padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--border);
   flex: 1;
   overflow-y: auto;
   display: flex;
@@ -294,7 +316,6 @@ button.tag.active {
 @media (min-width: 768px) {
   .lb-body {
     flex: 1 1 40%;
-    border-bottom: none;
   }
 }
 
@@ -343,15 +364,23 @@ button.tag.active {
   flex-shrink: 0;
 }
 
+/* close は .lb-box 直下の絶対配置で常に右上。下の .lb-nav には居ない */
 .lb-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
   color: var(--text);
   cursor: pointer;
   letter-spacing: .08em;
   user-select: none;
+  padding: 2px 4px;
+  z-index: 2;
 }
 
 .lb-close:hover { color: var(--text-hi); }
+.lb-close:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
 
 .lb-arrows { display: flex; gap: 8px; }
 
@@ -429,8 +458,10 @@ button.tag.active {
 
 .lb-species[hidden] { display: none; }
 
-/* species と photo-info の境界線。species が表示されているときだけ */
-.lb-species:not([hidden]) + .lb-photo-info {
+/* species/artist と photo-info の境界線。どちらかが表示されているときに引く。
+   間に lb-artist が挟まる arts カテゴリ向けに `+`（隣接兄弟）ではなく `~`（一般兄弟）で書く */
+.lb-species:not([hidden]) ~ .lb-photo-info,
+.lb-artist:not([hidden])  ~ .lb-photo-info {
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
@@ -470,6 +501,8 @@ button.tag.active {
   border-top: 1px solid var(--border);
 }
 
+.lb-species-features[hidden] { display: none; }
+
 .lb-species-features li {
   font-family: var(--font-body-jp);
   font-size: 13px;
@@ -494,9 +527,78 @@ button.tag.active {
   color: var(--text-hi);
   line-height: 2.0;
   padding-top: 10px;
-  border-top: 1px solid var(--border);
   white-space: pre-wrap;
 }
+
+/* description が最初の body 要素になるとき（= features 非表示）だけ上に区切り線を引く。
+   features が出ているときは features 側の border-top で区切り済みなので、description には引かない。
+   こうしないと features と description の間に線が二重に出る。 */
+.lb-species-features[hidden] + .lb-species-description {
+  border-top: 1px solid var(--border);
+}
+
+/* ── lightbox: artist (arts カテゴリ用) ──
+   作品（lb-species）の下に従属する補助情報という位置づけ。
+   引用ブロック風に左に縦の細いバーだけを置いて視覚的にインデントする。
+   横線（border-top）は使わない: description と artist の間で水平線が二重に見えるのを避けるため。 */
+.lb-artist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 12px;
+  margin-top: 16px;
+  border-left: 2px solid var(--border);
+}
+
+.lb-artist[hidden] { display: none; }
+
+/* 色設計: 作家ブロックは「読み物」なので text-hi 寄り。
+   写真メタ（lb-exif の --dim）と同じ階調にならないように一段明るくして区別する。 */
+.lb-artist-label {
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--accent);  /* 作家セクションの目印。dim では exif と被るのでアクセント */
+}
+
+.lb-artist-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-hi);
+  letter-spacing: .04em;
+}
+
+.lb-artist-name-en {
+  font-size: 11px;
+  color: var(--text);
+  letter-spacing: .08em;
+}
+
+.lb-artist-name-en[hidden] { display: none; }
+
+.lb-artist-meta {
+  font-size: 11px;
+  color: var(--text);
+  letter-spacing: .04em;
+}
+
+.lb-artist-meta[hidden] { display: none; }
+
+/* artist features は描画しないが、CSS だけ残しても表示には影響しない。
+   将来再表示する場合に備えて hidden 状態だけ確実に効かせる */
+.lb-artist-features[hidden] { display: none; }
+
+.lb-artist-bio {
+  font-family: var(--font-body-jp);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-hi);
+  line-height: 1.85;
+  padding-top: 4px;
+  white-space: pre-wrap;
+}
+
+.lb-artist-bio[hidden] { display: none; }
 
 /* ── lightbox: 3D model viewer ── */
 .lb-3d {
@@ -710,6 +812,10 @@ button.tag.active {
   letter-spacing: .1em;
   text-transform: uppercase;
 }
+
+/* data-mode で隠したフィールドを確実に消す。
+   label の display: flex が hidden 属性の UA スタイルを上書きしてしまうため明示する */
+.lb-edit-fields label[hidden] { display: none; }
 
 .lb-edit-fields input,
 .lb-edit-fields textarea {
