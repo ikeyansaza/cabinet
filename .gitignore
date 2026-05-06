@@ -22,3 +22,6 @@ npm-debug.log
 
 # Git worktrees
 .worktrees/
+
+# 3D models（個人データ。リポには含めない）
+*.glb
