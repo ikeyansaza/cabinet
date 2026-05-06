@@ -9,6 +9,9 @@
   let visible    = [];
   let current    = 0;
   let activeTag  = 'all';
+  // 編集パネルを開いたときの元の species エントリ。保存時に spread して
+  // フォームに無いフィールド（model 等）を保持する。
+  let editingOriginalEntry = {};
 
   /* ── tauri 連携ヘルパ ── */
   let tauriApi = null;
@@ -47,6 +50,13 @@
   const picker        = document.getElementById('picker');
   const pickerBtn     = document.getElementById('picker-btn');
   const categoryTabs   = document.getElementById('category-tabs');
+  const lbEdit       = document.getElementById('lb-edit');
+  const lbEditPanel  = document.getElementById('lb-edit-panel');
+  const lbEditForm   = document.getElementById('lb-edit-form');
+  const lbEditCancel = document.getElementById('lb-edit-cancel');
+  const lbEditClose  = document.getElementById('lb-edit-close');
+  const lbEditSave   = document.getElementById('lb-edit-save');
+  const lbEditStatus = document.getElementById('lb-edit-status');
 
   /* ── grid のクリック / キー操作は delegation で受ける（カード再生成時にリスナ重複しないように） ── */
   grid.addEventListener('click', (e) => {
@@ -209,8 +219,14 @@
       await rescan(T);
     });
     await T.listen('photos-updated', async () => {
-      const photos = await T.invoke('read_photos_json');
+      // 自分で species.json を書き換えたときも watcher が発火する。
+      // photos と species 両方を再読込して状態を同期させる。
+      const [photos, species] = await Promise.all([
+        T.invoke('read_photos_json'),
+        T.invoke('read_species_json'),
+      ]);
       allPhotos = photos || [];
+      speciesMap = species || {};
       applyFilter(activeTag);
     });
   }
@@ -390,6 +406,8 @@
     lbSpNameEn.textContent = sp.name_en || '';
 
     const metaParts = [];
+    if (sp.author)  metaParts.push(sp.author);
+    if (sp.year)    metaParts.push(sp.year);
     if (sp.habitat) metaParts.push(sp.habitat);
     if (sp.size)    metaParts.push(sp.size);
     lbSpMeta.textContent = metaParts.join(' · ');
@@ -419,6 +437,7 @@
   }
 
   function navigate(dir) {
+    if (!lbEditPanel.hidden) return; // 編集中はナビ無効。意図せぬ離脱で入力を失わないため
     current = (current + dir + visible.length) % visible.length;
     openLB(current);
   }
@@ -433,15 +452,131 @@
   lbNext.addEventListener('click',  () => navigate(+1));
 
   lb.addEventListener('click', e => {
-    if (e.target === lb) closeLB();
+    // 編集パネル開閉中は外側クリックで閉じない（誤って入力中の値を捨てない）
+    if (e.target === lb && lbEditPanel.hidden) closeLB();
   });
 
   document.addEventListener('keydown', e => {
     if (!lb.classList.contains('open')) return;
-    if (e.key === 'Escape')     closeLB();
+    if (e.key === 'Escape') {
+      if (!lbEditPanel.hidden) closeEditPanel();
+      else closeLB();
+      return;
+    }
+    if (!lbEditPanel.hidden) return; // 編集中は ← → を無効化
     if (e.key === 'ArrowLeft')  navigate(-1);
     if (e.key === 'ArrowRight') navigate(+1);
   });
+
+  /* ── edit panel ── */
+  lbEdit.addEventListener('click', openEditPanel);
+  lbEditCancel.addEventListener('click', closeEditPanel);
+  lbEditClose.addEventListener('click', closeEditPanel);
+  lbEditForm.addEventListener('submit', onEditSubmit);
+
+  function openEditPanel() {
+    const p = visible[current];
+    if (!p) return;
+    const speciesId = p.species || slugifyFilename(p.file);
+    const sp = (p.species && speciesMap[p.species]) || {};
+    editingOriginalEntry = sp;
+
+    const f = lbEditForm.elements;
+    f.species_id.value = speciesId;
+    f.name_ja.value    = sp.name_ja || '';
+    f.name_en.value    = sp.name_en || '';
+    f.author.value     = sp.author  || '';
+    f.year.value       = sp.year    || '';
+    f.habitat.value    = sp.habitat || '';
+    f.size.value       = sp.size    || '';
+    f.features.value   = (sp.features || []).join('\n');
+    f.description.value = sp.description || '';
+
+    setEditStatus('', null);
+    lbEditPanel.hidden = false;
+    f.name_ja.focus();
+  }
+
+  function closeEditPanel() {
+    lbEditPanel.hidden = true;
+    setEditStatus('', null);
+  }
+
+  async function onEditSubmit(e) {
+    e.preventDefault();
+    const f = lbEditForm.elements;
+    const speciesId = f.species_id.value.trim();
+    if (!speciesId) {
+      setEditStatus('species ID を入力してください', false);
+      f.species_id.focus();
+      return;
+    }
+
+    // 元エントリを spread して、フォームに無いフィールド（model 等）を保持
+    const entry = { ...editingOriginalEntry };
+    setOrDelete(entry, 'name_ja', f.name_ja.value.trim());
+    setOrDelete(entry, 'name_en', f.name_en.value.trim());
+    setOrDelete(entry, 'author',  f.author.value.trim());
+    setOrDelete(entry, 'year',    f.year.value.trim());
+    setOrDelete(entry, 'habitat', f.habitat.value.trim());
+    setOrDelete(entry, 'size',    f.size.value.trim());
+
+    const features = f.features.value
+      .split('\n')
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (features.length > 0) entry.features = features;
+    else delete entry.features;
+
+    setOrDelete(entry, 'description', f.description.value.trim());
+
+    const newSpeciesMap = { ...speciesMap, [speciesId]: entry };
+    const p = visible[current];
+
+    lbEditSave.disabled = true;
+    setEditStatus('saving...', null);
+    try {
+      const T = await tauri();
+      await T.invoke('write_species_json', { value: newSpeciesMap });
+      // 写真側のリンクが変わる場合のみ書き戻す（同一 ID の説明文だけ編集なら photos.json は触らない）
+      if (p.species !== speciesId) {
+        await T.invoke('update_photo_species', { file: p.file, species: speciesId });
+      }
+
+      // 楽観的にローカル state も更新（watcher が直後に同じ内容で発火する）
+      speciesMap = newSpeciesMap;
+      const orig = allPhotos.find(x => x.file === p.file);
+      if (orig) orig.species = speciesId;
+      p.species = speciesId;
+
+      renderSpecies(speciesId);
+      renderGrid();
+      setEditStatus('saved', true);
+      setTimeout(closeEditPanel, 600);
+    } catch (err) {
+      setEditStatus(`保存失敗: ${err}`, false);
+    } finally {
+      lbEditSave.disabled = false;
+    }
+  }
+
+  function setOrDelete(obj, key, value) {
+    if (value) obj[key] = value;
+    else delete obj[key];
+  }
+
+  function setEditStatus(msg, ok) {
+    lbEditStatus.textContent = msg;
+    lbEditStatus.classList.toggle('ok', ok === true);
+  }
+
+  function slugifyFilename(file) {
+    return file
+      .replace(/\.[^.]+$/, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
 
   /* ── util ── */
   function esc(str) {
