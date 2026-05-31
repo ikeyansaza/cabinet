@@ -2,9 +2,9 @@
 
 ## プロジェクト概要
 
-個人用デスクトップギャラリー兼コレクション（macOS / Tauri 2）。
-アプリ名は `cabinet`（"cabinet of curiosities" 由来）。
-動物・絵画・彫刻・食事など、自分が眺めたいものを写真と説明（species.json）で並べる。
+個人用デスクトップギャラリー兼コレクション（macOS / Tauri 2）。「世界を知るための、私的な図鑑」。
+アプリ名は `cabinet`（"cabinet of curiosities" 由来。語源は陳列棚＝集めて並べる場所）。
+動物・絵画・彫刻・食事など、自分が眺めたいものを写真と説明（species.json）で並べ、眺めて・名づけて世界に近づく。
 WebView 内で従来の純静的 HTML/CSS/JS が動き、Rust 側がフォトフォルダの
 EXIF 抽出・JSON 読み書き・ファイルウォッチャーを担当する。
 公開はせず、個人 Mac でのみ動かす運用。
