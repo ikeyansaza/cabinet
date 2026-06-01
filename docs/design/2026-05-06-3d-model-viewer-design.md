@@ -173,7 +173,7 @@ async function modelUrl(relPath) {
 | `src/gallery.js` | 3D ボタン描画 / トグル / `<model-viewer>` の生成・破棄 |
 | `src/style.css` | `.lb-3d-toggle`、`.lb-3d-viewer`、エラー / ローディング表示のスタイル |
 | `CLAUDE.md` | `species.json` の `model` フィールド、`src/lib/` の役割を追記 |
-| `docs/superpowers/specs/2026-05-06-3d-model-viewer-design.md` | 本設計書（新規） |
+| `docs/design/2026-05-06-3d-model-viewer-design.md` | 本設計書（新規） |
 
 ## やらないこと（YAGNI）
 

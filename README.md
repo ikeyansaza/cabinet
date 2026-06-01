@@ -68,7 +68,7 @@ ln -sf "$PWD/src-tauri/target/release/bundle/macos/cabinet.app" \
 cabinet-update
 ```
 
-`~/.zshrc` で `alias cabinet-update="cd ~/repositories/my-album && npm run tauri build"` を定義済み。
+`~/.zshrc` で `alias cabinet-update="cd ~/repositories/cabinet && npm run tauri build"` を定義済み。
 
 `/Applications/cabinet.app` は symlink なので rebuild 完了後に再起動するだけで新版が立ち上がる（コピー不要）。
 
@@ -97,5 +97,5 @@ python scripts/gen_photos.py --photos-dir ~/Pictures/cabinet/
 
 ## 設計ドキュメント
 
-- `docs/superpowers/specs/` に設計
-- `docs/superpowers/plans/` に実装プラン
+- `docs/design/` に各機能の設計書
+- `docs/3d-models.md` に 3D モデル表示の技術メモ
