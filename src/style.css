@@ -367,15 +367,15 @@ button.tag.active {
 /* close は .lb-box 直下の絶対配置で常に右上。下の .lb-nav には居ない */
 .lb-close {
   position: absolute;
-  top: 10px;
-  right: 14px;
+  top: 8px;
+  right: 10px;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 10px;
+  font-size: 18px;
+  line-height: 1;
   color: var(--text);
   cursor: pointer;
-  letter-spacing: .08em;
   user-select: none;
-  padding: 2px 4px;
+  padding: 4px 8px;
   z-index: 2;
 }
 
@@ -731,7 +731,7 @@ button.tag.active {
   border-radius: 2px;
   display: inline-flex;
   align-items: center;
-  margin-right: auto; /* close ボタンを左寄せの後に置きつつ、アイコンは更に左へ */
+  margin-right: auto; /* 鉛筆を nav バーの左端へ押し出し、prev/next を右端に分ける */
   transition: border-color .15s, color .15s;
 }
 
