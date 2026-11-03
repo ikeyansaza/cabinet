@@ -72,6 +72,8 @@
   const lbEditClose  = document.getElementById('lb-edit-close');
   const lbEditSave   = document.getElementById('lb-edit-save');
   const lbEditStatus = document.getElementById('lb-edit-status');
+  const lbEditVisit      = document.getElementById('lb-edit-visit');
+  const lbEditVisitLabel = document.getElementById('lb-edit-visit-label');
 
   /* ── artist (arts カテゴリのみ) ──
      UI からの編集は species 側に統合（species 編集パネルから artist ID を切替できる）。
@@ -109,6 +111,23 @@
     e.preventDefault();
     const idx = Number(card.dataset.index);
     if (Number.isFinite(idx)) openLB(idx);
+  });
+
+  /* ── visits ビューから写真を開く ──
+     visits.js が cabinet:open-photo を dispatch する。別カテゴリの写真ならカテゴリを切り替えてから開く
+     （species の描画がカテゴリ依存のため）。タグフィルタで隠れている写真は all に戻して探す。 */
+  window.addEventListener('cabinet:open-photo', async (e) => {
+    const { category, file } = e.detail || {};
+    if (!category || !file) return;
+    const T = await tauri();
+    if (category !== currentCategory) await chooseCategory(T, category);
+    let idx = visible.findIndex(p => p.file === file);
+    if (idx < 0) {
+      filters.querySelectorAll('.tag').forEach(b => b.classList.toggle('active', b.dataset.tag === 'all'));
+      applyFilter('all');
+      idx = visible.findIndex(p => p.file === file);
+    }
+    if (idx >= 0) openLB(idx);
   });
 
   /* ── boot: フォルダ未設定なら picker、設定済なら refreshCategories ── */
@@ -858,10 +877,56 @@
     f.description.value = sp.description || '';
 
     setEditStatus('', null);
+    loadVisitOptions(p);
     lbEditPanel.hidden = false;
     if (mode === 'arts') f.title.focus();
     else f.name_ja.focus();
   }
+
+  // 撮影日と同じ日の訪問を選択肢にする。該当が無ければ select ごと隠す。
+  // 同日に訪問が複数ある日は、ここで写真ごとにどの訪問かを選ぶ（visits.json の訪問 ID を photos.json に保存）
+  async function loadVisitOptions(p) {
+    lbEditVisitLabel.hidden = true;
+    if (!p.date) return;
+    const T = await tauri();
+    const data = await T.invoke('read_visits_json');
+    if (visible[current] !== p) return; // 読み込み中に別の写真へ移った
+    const sameDay = ((data && data.visits) || []).filter(v => v.date === p.date);
+    if (sameDay.length === 0) return;
+
+    lbEditVisit.replaceChildren();
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = '—';
+    lbEditVisit.appendChild(none);
+    sameDay.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      opt.textContent = v.event ? `${v.place} · ${v.event}` : v.place;
+      lbEditVisit.appendChild(opt);
+    });
+    lbEditVisit.value = sameDay.some(v => v.id === p.visit) ? p.visit : '';
+    lbEditVisitLabel.hidden = false;
+  }
+
+  // 選んだ瞬間に保存する（species の保存ボタンとは独立。species ID 必須の検証に引っかからないように）
+  lbEditVisit.addEventListener('change', async () => {
+    const p = visible[current];
+    if (!p) return;
+    const value = lbEditVisit.value;
+    try {
+      const T = await tauri();
+      await T.invoke('update_photo_visit', { category: currentCategory, file: p.file, visit: value || null });
+      const orig = allPhotos.find(x => x.file === p.file);
+      [orig, p].forEach(x => {
+        if (!x) return;
+        if (value) x.visit = value; else delete x.visit;
+      });
+      setEditStatus('saved', true);
+    } catch (err) {
+      setEditStatus(`保存失敗: ${err}`, false);
+    }
+  });
 
   function closeEditPanel() {
     lbEditPanel.hidden = true;

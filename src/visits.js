@@ -32,6 +32,12 @@ function setMode(mode) {
 modeButtons.forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
 document.body.dataset.mode = 'gallery';
 
+/* ── 写真を gallery で開く（別カテゴリなら gallery.js 側でカテゴリを切り替える） ── */
+function openPhoto(category, file) {
+  setMode('gallery');
+  window.dispatchEvent(new CustomEvent('cabinet:open-photo', { detail: { category, file } }));
+}
+
 /* ── データ読み込み ── */
 async function reload() {
   state.parent = await invoke('get_parent_dir');

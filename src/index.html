@@ -169,6 +169,10 @@
             <label>description
               <textarea name="description" rows="6"></textarea>
             </label>
+            <!-- 撮影日と同じ日の訪問があるときだけ gallery.js が表示する。変更は即保存 -->
+            <label id="lb-edit-visit-label" hidden>visit
+              <select name="visit" id="lb-edit-visit"></select>
+            </label>
           </div>
           <div class="lb-edit-status" id="lb-edit-status" aria-live="polite"></div>
           <div class="lb-edit-actions">

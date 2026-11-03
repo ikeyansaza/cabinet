@@ -818,6 +818,7 @@ button.tag.active {
 .lb-edit-fields label[hidden] { display: none; }
 
 .lb-edit-fields input,
+.lb-edit-fields select,
 .lb-edit-fields textarea {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;
@@ -841,6 +842,7 @@ button.tag.active {
 }
 
 .lb-edit-fields input:focus,
+.lb-edit-fields select:focus,
 .lb-edit-fields textarea:focus {
   outline: none;
   border-color: var(--accent);
