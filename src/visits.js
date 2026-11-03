@@ -1,7 +1,7 @@
 // visits.js — 訪問記録ビュー。gallery.js とは body[data-mode] と CustomEvent だけで連携する。
 import { invoke, listen, convertFileSrc } from './tauri.js';
 import {
-  groupByYear, kindsOf, linkPhotos, visitsOnDate, isValidDate, makeVisitId,
+  groupByYear, kindsOf, linkPhotos, visitsOnDate, isValidDate, makeVisitId, makeWishId,
 } from './visits-logic.js';
 
 const view = document.getElementById('visits-view');
@@ -140,11 +140,6 @@ function buildVisitForm({ initial, submitLabel, onSubmit, onCancel }) {
   note.rows = 3;
   note.value = initial.note || '';
   field('note', 'note', note);
-
-  const datalist = el('datalist');
-  datalist.id = 'visit-kinds';
-  kindsOf(state.visits).forEach((k) => { const o = el('option'); o.value = k; datalist.appendChild(o); });
-  form.appendChild(datalist);
 
   const status = el('div', 'visit-form-status');
   form.appendChild(status);
@@ -287,6 +282,76 @@ function renderRow(visit, photoCount, onToggle) {
   return row;
 }
 
+// 種類の入力補完（フォーム・wishlist 追加欄で共用。id=visit-kinds を list 属性で参照する）
+function kindsDatalist() {
+  const dl = el('datalist');
+  dl.id = 'visit-kinds';
+  kindsOf(state.visits).forEach((k) => { const o = el('option'); o.value = k; dl.appendChild(o); });
+  return dl;
+}
+
+/* ── 行きたい場所（日付なし）。「行った」で訪問に昇格する ── */
+function renderWishlist() {
+  const section = el('div', 'visits-next');
+  const head = el('div', 'visits-year-head');
+  head.appendChild(el('span', 'visits-year-title', 'next'));
+  head.appendChild(el('span', 'visits-year-summary', `${state.wishlist.length} places`));
+  section.appendChild(head);
+
+  for (const w of state.wishlist) {
+    const row = el('div', 'visit-row visit-row-static');
+    row.appendChild(el('span', 'visit-date', '·'));
+    const main = el('span', 'visit-place', w.place);
+    if (w.note) main.appendChild(el('span', 'visit-event', ` · ${w.note}`));
+    row.appendChild(main);
+    row.appendChild(el('span', 'visit-kind', w.kind));
+    const actions = el('span', 'visit-actions');
+    actions.appendChild(button('[ visited ]', () => {
+      // 訪問フォームを place / kind 事前入力・日付は今日で開く。保存したときだけ 1 回の書き込みで昇格する
+      state.form = {
+        initial: { date: todayLocal(), place: w.place, kind: w.kind, note: w.note },
+        submitLabel: 'add',
+        onSubmit: async (values) => {
+          state.visits.push(toVisit(makeVisitId(values.date, state.visits.map((v) => v.id)), values));
+          state.wishlist = state.wishlist.filter((x) => x.id !== w.id);
+          state.form = null;
+          await saveVisits();
+        },
+      };
+      render();
+      window.scrollTo(0, 0);
+    }));
+    const armed = state.armedDeleteId === w.id;
+    actions.appendChild(button(armed ? 'really delete?' : 'delete', async () => {
+      if (!armed) { state.armedDeleteId = w.id; render(); return; }
+      state.wishlist = state.wishlist.filter((x) => x.id !== w.id);
+      state.armedDeleteId = null;
+      await saveVisits();
+    }));
+    row.appendChild(actions);
+    section.appendChild(row);
+  }
+
+  // 追加欄
+  const add = el('form', 'visits-next-add');
+  add.autocomplete = 'off';
+  const place = el('input'); place.type = 'text'; place.name = 'place'; place.placeholder = 'place'; place.spellcheck = false;
+  const kind = el('input'); kind.type = 'text'; kind.name = 'kind'; kind.placeholder = 'kind'; kind.setAttribute('list', 'visit-kinds');
+  const submit = el('button', 'visit-btn', 'add');
+  submit.type = 'submit';
+  add.append(place, kind, submit);
+  add.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const p = place.value.trim();
+    const k = kind.value.trim();
+    if (!p || !k) return; // 両方そろうまで何もしない
+    state.wishlist.push({ id: makeWishId(state.wishlist.map((w) => w.id)), place: p, kind: k });
+    await saveVisits();
+  });
+  section.appendChild(add);
+  return section;
+}
+
 function render() {
   view.replaceChildren();
 
@@ -296,6 +361,7 @@ function render() {
   }
 
   if (state.error) view.appendChild(el('div', 'visits-error', state.error));
+  view.appendChild(kindsDatalist());
 
   // ツールバー: 種類フィルタ + [ add visit ]
   const toolbar = el('div', 'visits-toolbar');
@@ -320,6 +386,9 @@ function render() {
       onCancel: () => { state.form = null; render(); },
     }));
   }
+
+  // 項目が 0 件でも next セクションは追加入力のために常に出す
+  view.appendChild(renderWishlist());
 
   if (state.visits.length === 0) {
     view.appendChild(el('div', 'visits-message', 'まだ訪問記録がありません'));

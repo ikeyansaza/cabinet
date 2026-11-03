@@ -1086,3 +1086,21 @@ body:not([data-mode="visits"]) .visits-view { display: none; }
 .visit-form textarea { resize: vertical; }
 .visit-form-status { color: var(--err); font-size: 10px; min-height: 14px; letter-spacing: .04em; }
 .visit-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── visits: next（行きたい場所） ── */
+.visits-next { margin-bottom: 28px; }
+.visit-row-static { cursor: default; grid-template-columns: 56px 1fr auto auto; }
+.visit-row-static:hover .visit-place { color: var(--text-hi); }
+.visit-row-static .visit-actions { justify-content: flex-end; }
+.visits-next-add { display: flex; gap: 8px; padding: 10px 4px 0 70px; }
+.visits-next-add input {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-hi);
+  border-radius: 3px;
+  width: 200px;
+}
+.visits-next-add input:focus { outline: none; border-color: var(--accent); }
