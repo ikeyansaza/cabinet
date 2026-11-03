@@ -1107,8 +1107,8 @@ body[data-mode="gallery"] .visits-view { display: none; }
 
 /* ── next: 行きたい場所のメモ ── */
 .wish-note { font-size: 11px; color: var(--text); margin-top: 3px; line-height: 1.5; white-space: pre-wrap; }
-.wish-note-form { display: flex; gap: 8px; margin-top: 4px; }
-.wish-note-form input {
+.wish-edit-form { display: flex; gap: 8px; padding: 8px 4px 8px 70px; border-bottom: 1px solid var(--panel); }
+.wish-edit-form input {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;
   padding: 4px 8px;
@@ -1116,10 +1116,10 @@ body[data-mode="gallery"] .visits-view { display: none; }
   border: 1px solid var(--border);
   color: var(--text-hi);
   border-radius: 3px;
-  flex: 1;
-  max-width: 420px;
+  width: 180px;
 }
-.wish-note-form input:focus { outline: none; border-color: var(--accent); }
+.wish-edit-form input[name="note"] { flex: 1; max-width: 320px; }
+.wish-edit-form input:focus { outline: none; border-color: var(--accent); }
 .visits-next-add input[name="note"] { width: 260px; }
 
 /* ── visits 内のサブタブ（log | next）。見た目は gallery のカテゴリタブ（.cat-tab）を流用 ── */
