@@ -23,7 +23,9 @@ album/
 │   │   ├── lib.rs              # エントリ・コマンド・プラグイン setup
 │   │   ├── state.rs            # AppState（photos_dir, watcher）
 │   │   ├── exif.rs             # EXIF 抽出（kamadak-exif）
-│   │   ├── scan.rs             # フォルダ走査 + photos.json マージ
+│   │   ├── scan.rs             # フォルダ走査 + photos.json マージ + カテゴリ横断読み込み
+│   │   ├── edit.rs             # species.json / artists.json / photos.json の atomic 書き込み
+│   │   ├── visits.rs           # visits.json の読み込み（正規化）と atomic 書き込み
 │   │   └── watcher.rs          # ファイルウォッチャー（notify, 500ms デバウンス）
 │   ├── Cargo.toml
 │   ├── tauri.conf.json
@@ -31,11 +33,14 @@ album/
 ├── src/                        # frontend（WebView で読まれる）
 │   ├── index.html
 │   ├── gallery.js
+│   ├── visits.js               # visits ビュー（ES module。gallery.js とは body[data-mode] と CustomEvent で連携）
+│   ├── visits-logic.js         # visits の純粋ロジック（年集計・写真紐付け・ID 採番。node --test でテスト）
 │   ├── tauri.js                # Tauri API 薄ラッパ
 │   ├── style.css
 │   └── lib/                    # vendor ライブラリ（バンドラ無しの素同梱）
 │       └── model-viewer.min.js # @google/model-viewer の dist（3D 表示用）
 ├── scripts/gen_photos.py       # CLI 用に維持。Tauri 化後の primary は rescan コマンド
+├── scripts/notion-convert.mjs  # Notion の貼り付け表 → visits.json 変換（1 回限りの移行用。migrate_notion.mjs が CLI）
 ├── docs/
 └── README.md
 ```
@@ -52,6 +57,7 @@ album/
 | 写真ファイル | カテゴリフォルダの中（例 `~/Pictures/album/animals/IMG_5621.JPG`） |
 | `photos.json` / `species.json` | 各カテゴリフォルダの中 |
 | `artists.json` | arts カテゴリのみ。フォルダ内に置く |
+| `visits.json` | parent_dir 直下（カテゴリ内ではない）。訪問記録と行きたい場所 |
 | アプリ状態（parent_dir / current_category / window 位置） | `~/Library/Application Support/com.naofumiikeda.album/` |
 
 カテゴリは parent_dir 直下のサブフォルダで「画像ファイルを 1 枚以上含むもの」が自動列挙される。
@@ -101,7 +107,8 @@ album/
     "lens":    "200-600mm f/5.6-6.3 G", // レンズ名（任意）
     "exif":    "f/6.3 · 1/2000s · ISO 3200", // 露出情報（任意）
     "tags":    ["bird"],              // フィルター用タグ（任意・配列）
-    "title":   "KINGFISHER"           // カスタムタイトル（任意・大文字表記）
+    "title":   "KINGFISHER",          // カスタムタイトル（任意・大文字表記）
+    "visit":   "2025-10-12-1"         // visits.json の訪問 ID（任意・手動で選んだときだけ保存）
   }
 ]
 ```
@@ -202,6 +209,38 @@ arts では `features`（箇条書き）はライトボックスに描画しな�
 
 ---
 
+## visits.json スキーマ（訪問記録）
+
+`<parent_dir>/visits.json` に訪問記録（`visits`）と行きたい場所（`wishlist`）を持つ。カテゴリ（写真フォルダ）とは別の軸で、
+ヘッダーの `gallery | visits` でモードを切り替える。ファイルが無くても gallery は動作する。
+
+```json
+{
+  "visits": [
+    {
+      "id":    "2025-10-12-1",        // 必須・一意・不変（photos.json の visit から参照される）。日付-連番
+      "date":  "2025-10-12",          // 必須 YYYY-MM-DD
+      "place": "アーティゾン美術館",     // 必須
+      "event": "葛飾北斎展",            // 任意（特別展など）
+      "kind":  "美術館",                // 必須（自由文字列。フィルタボタンはデータから動的生成）
+      "note":  "北斎が良かった"          // 任意・短い自由記述
+    }
+  ],
+  "wishlist": [
+    { "id": "w1", "place": "伊香保グリーン牧場", "kind": "牧場", "note": "" }  // 日付なし。「行った」で visits に昇格
+  ]
+}
+```
+
+- 年ごとにまとまり、各年にサマリー（訪問数・種類別内訳・ユニークな場所数・リピート数）が出る。ユニークな場所は `place` の完全一致で数える（正規化しない）。サマリーは種類フィルタの影響を受けない
+- 写真との紐付け: ① `photos.json` の `visit` が実在する訪問を指していればそれが優先 ② なければ写真の撮影日 `date` が訪問日と一致する訪問へ自動紐付け（実行時計算・ファイルには書かない）③ 同日に訪問が 2 件以上ある日の写真は「未割り当て」になり、visits 画面かライトボックスの編集パネルで写真ごとに選ぶ
+- 存在しない訪問 ID を指す `visit` は無視される（訪問を削除しても写真側は書き換えない）
+- 手動選択の結果は、その写真が属するカテゴリの `photos.json` に書く（`update_photo_visit(category, file, visit)`）
+- `scan.rs` の `MANUAL_FIELDS` に `visit` が入っているので、rescan しても消えない
+- `visits.js` / `visits-logic.js` は ES module（`index.html` から `type="module"`）。テストは `npm test`（`node --test`）、Rust は `cargo test`
+
+---
+
 ## gallery.js の設計方針
 
 - IIFE `(function(){ 'use strict'; ... })()` でグローバル汚染なし
@@ -269,4 +308,5 @@ npm run tauri build
 - `species.json` の値で塗り（背景色）や新色を導入しない（mokomoko デザインシステム遵守）
 - 写真ファイルや photos.json をリポジトリに含めない（個人データなので）
 - macOS 以外への配布を想定しない（YAGNI）
+- `visits.json` や Notion からの移行元データ（訪問記録）をリポジトリに含めない（個人データ）
 - `.glb` などの 3D モデルファイルをリポジトリに含めない（個人データ。`src/lib/model-viewer.min.js` のみ vendor として例外的に管理）
