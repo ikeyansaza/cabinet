@@ -892,3 +892,98 @@ button.tag.active {
   opacity: .4;
   cursor: not-allowed;
 }
+
+/* ── mode toggle（gallery | visits） ── */
+.header-right {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.mode-toggle { display: flex; gap: 0; }
+
+.mode-btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  letter-spacing: .08em;
+  transition: border-color .15s, color .15s;
+}
+.mode-btn:first-child { border-radius: 2px 0 0 2px; }
+.mode-btn:last-child  { border-radius: 0 2px 2px 0; margin-left: -1px; }
+.mode-btn:hover { color: var(--text-hi); }
+.mode-btn.active { border-color: var(--accent); color: var(--accent); position: relative; }
+
+/* visits モードでは gallery 側の UI を隠し、visits ビューだけ見せる */
+body[data-mode="visits"] .category-tabs,
+body[data-mode="visits"] .filters,
+body[data-mode="visits"] .status-bar,
+body[data-mode="visits"] .grid,
+body[data-mode="visits"] .picker { display: none; }
+
+.visits-view[hidden] { display: none; }
+body:not([data-mode="visits"]) .visits-view { display: none; }
+
+/* ── visits view ── */
+.visits-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.visits-year { margin-bottom: 28px; }
+
+.visits-year-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.visits-year-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-hi);
+  letter-spacing: .08em;
+}
+
+.visits-year-summary {
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: .06em;
+}
+
+.visit-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto auto;
+  gap: 14px;
+  align-items: baseline;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--panel);
+  cursor: pointer;
+  font-size: 12px;
+  transition: color .15s;
+}
+.visit-row:hover .visit-place { color: var(--accent); }
+
+.visit-date { color: var(--dim); letter-spacing: .04em; }
+.visit-place { color: var(--text-hi); }
+.visit-event { color: var(--text); }
+.visit-kind  { font-size: 10px; color: var(--dim); letter-spacing: .06em; }
+.visit-count { font-size: 10px; color: var(--dim); min-width: 40px; text-align: right; }
+.visit-note-mark { color: var(--accent); margin-left: 6px; }
+
+.visits-message {
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: .06em;
+  padding: 40px 0;
+}

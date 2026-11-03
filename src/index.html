@@ -18,6 +18,10 @@
     <header>
       <div class="logo">cabinet</div>
       <div class="header-right">
+        <div class="mode-toggle" id="mode-toggle">
+          <button class="mode-btn active" data-mode="gallery" type="button">gallery</button>
+          <button class="mode-btn" data-mode="visits" type="button">visits</button>
+        </div>
         <span class="meta" id="header-meta">—</span>
       </div>
     </header>
@@ -52,6 +56,9 @@
     <div class="grid" id="grid">
       <div class="loading">loading photos.json ...</div>
     </div>
+
+    <!-- visits ビュー（visits.js が描画。body[data-mode="visits"] のときだけ表示） -->
+    <section class="visits-view" id="visits-view" hidden aria-label="visits"></section>
 
   </div>
 
@@ -175,6 +182,7 @@
   </div>
 
   <script type="module" src="gallery.js"></script>
+  <script type="module" src="visits.js"></script>
 </body>
 
 </html>
