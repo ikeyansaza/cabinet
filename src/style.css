@@ -920,15 +920,20 @@ button.tag.active {
 .mode-btn:hover { color: var(--text-hi); }
 .mode-btn.active { border-color: var(--accent); color: var(--accent); position: relative; }
 
-/* visits モードでは gallery 側の UI を隠し、visits ビューだけ見せる */
+/* visits / next モードでは gallery 側の UI を隠し、visits ビューだけ見せる */
 body[data-mode="visits"] .category-tabs,
 body[data-mode="visits"] .filters,
 body[data-mode="visits"] .status-bar,
 body[data-mode="visits"] .grid,
-body[data-mode="visits"] .picker { display: none; }
+body[data-mode="visits"] .picker,
+body[data-mode="next"] .category-tabs,
+body[data-mode="next"] .filters,
+body[data-mode="next"] .status-bar,
+body[data-mode="next"] .grid,
+body[data-mode="next"] .picker { display: none; }
 
 .visits-view[hidden] { display: none; }
-body:not([data-mode="visits"]) .visits-view { display: none; }
+body[data-mode="gallery"] .visits-view { display: none; }
 
 /* ── visits view ── */
 .visits-filters {

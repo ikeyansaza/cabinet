@@ -37,8 +37,12 @@ function el(tag, className, text) {
 function setMode(mode) {
   document.body.dataset.mode = mode;
   modeButtons.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
-  view.hidden = mode !== 'visits';
-  if (mode === 'visits') { state.error = ''; reload(); }
+  view.hidden = mode === 'gallery';
+  if (mode !== 'gallery') {
+    // 追加フォームや削除確認は、モードをまたいで持ち越さない
+    state.error = ''; state.form = null; state.openId = null; state.editingId = null; state.armedDeleteId = null;
+    reload();
+  }
 }
 
 modeButtons.forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
@@ -418,6 +422,15 @@ function render() {
   if (skipped > 0) view.appendChild(el('div', 'visits-error', `${skipped} 件の不正な記録（id / date / place / kind が欠けている）は表示していません。保存してもファイルには残します`));
   view.appendChild(kindsDatalist());
 
+  // next モード: 行きたい場所だけを出す（「行った」で開く訪問フォームもここに出る）
+  if (document.body.dataset.mode === 'next') {
+    if (state.form) {
+      view.appendChild(buildVisitForm({ ...state.form, onCancel: () => { state.form = null; render(); } }));
+    }
+    view.appendChild(renderWishlist());
+    return;
+  }
+
   // ツールバー: 種類フィルタ + [ add visit ]
   const toolbar = el('div', 'visits-toolbar');
   toolbar.appendChild(renderFilters());
@@ -441,9 +454,6 @@ function render() {
       onCancel: () => { state.form = null; render(); },
     }));
   }
-
-  // 項目が 0 件でも next セクションは追加入力のために常に出す
-  view.appendChild(renderWishlist());
 
   if (state.visits.length === 0) {
     view.appendChild(el('div', 'visits-message', 'まだ訪問記録がありません'));
