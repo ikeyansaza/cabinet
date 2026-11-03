@@ -18,6 +18,7 @@ const state = {
   editingId: null,   // 編集フォームを開いている訪問 ID
   armedDeleteId: null, // delete を 1 回押した訪問 ID（2 回目で実行）
   editingWishNoteId: null, // メモを編集中の行きたい場所 ID
+  sub: 'log',        // visits 内のタブ: 'log'（年別一覧）| 'next'（行きたい場所）
   form: null,        // 上部の追加フォーム { initial, submitLabel, onSubmit(values) }。null なら閉じている
   error: '',         // 直近の保存失敗メッセージ
   readFailed: false, // visits.json が壊れていて読めない（この間は編集させない）
@@ -41,6 +42,7 @@ function setMode(mode) {
   view.hidden = mode === 'gallery';
   if (mode !== 'gallery') {
     // 追加フォームや削除確認は、モードをまたいで持ち越さない
+    state.sub = 'log'; // visits を開いたときは常に log から
     state.error = ''; state.form = null; state.openId = null; state.editingId = null; state.armedDeleteId = null; state.editingWishNoteId = null;
     reload();
   }
@@ -343,6 +345,25 @@ function kindsDatalist() {
   return dl;
 }
 
+/* ── visits 内のサブタブ（log | next） ── */
+function renderSubtabs() {
+  const bar = el('div', 'visits-subtabs');
+  for (const name of ['log', 'next']) {
+    const btn = el('button', 'cat-tab', name);
+    btn.type = 'button';
+    if (state.sub === name) btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      if (state.sub === name) return;
+      // 追加フォームや削除確認は、タブをまたいで持ち越さない
+      state.sub = name; state.form = null; state.openId = null; state.editingId = null;
+      state.armedDeleteId = null; state.editingWishNoteId = null;
+      render();
+    });
+    bar.appendChild(btn);
+  }
+  return bar;
+}
+
 /* ── 行きたい場所（日付なし）。「行った」で訪問に昇格する ── */
 function renderWishlist() {
   const section = el('div', 'visits-next');
@@ -449,8 +470,10 @@ function render() {
   if (skipped > 0) view.appendChild(el('div', 'visits-error', `${skipped} 件の不正な記録（id / date / place / kind が欠けている）は表示していません。保存してもファイルには残します`));
   view.appendChild(kindsDatalist());
 
-  // next モード: 行きたい場所だけを出す（「行った」で開く訪問フォームもここに出る）
-  if (document.body.dataset.mode === 'next') {
+  view.appendChild(renderSubtabs());
+
+  // next タブ: 行きたい場所だけを出す（「行った」で開く訪問フォームもここに出る）
+  if (state.sub === 'next') {
     if (state.form) {
       view.appendChild(buildVisitForm({ ...state.form, onCancel: () => { state.form = null; render(); } }));
     }

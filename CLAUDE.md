@@ -212,7 +212,7 @@ arts では `features`（箇条書き）はライトボックスに描画しな�
 ## visits.json スキーマ（訪問記録）
 
 `<parent_dir>/visits.json` に訪問記録（`visits`）と行きたい場所（`wishlist`）を持つ。カテゴリ（写真フォルダ）とは別の軸で、
-ヘッダーの `gallery | visits | next` でモードを切り替える（`next` は行きたい場所だけの画面。追加・「行った」で訪問へ昇格もここで行う）。ファイルが無くても gallery は動作する。
+ヘッダーの `gallery | visits` でモードを切り替える。visits の中は `log`（年別一覧）と `next`（行きたい場所。メモ・追加・「行った」で訪問へ昇格）のサブタブに分かれ、開いたときは常に `log` から始まる。ファイルが無くても gallery は動作する。
 
 ```json
 {
