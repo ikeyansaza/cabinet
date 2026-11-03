@@ -382,7 +382,7 @@ function renderWishlist() {
       const input = el('input');
       input.type = 'text';
       input.value = w.note || '';
-      input.placeholder = '何を見たい？';
+      input.placeholder = 'memo';
       input.spellcheck = false;
       form.append(input, button('cancel', () => { state.editingWishNoteId = null; render(); }));
       const save = el('button', 'visit-btn visit-btn-primary', 'save');
@@ -435,7 +435,7 @@ function renderWishlist() {
   add.autocomplete = 'off';
   const place = el('input'); place.type = 'text'; place.name = 'place'; place.placeholder = 'place'; place.spellcheck = false;
   const kind = el('input'); kind.type = 'text'; kind.name = 'kind'; kind.placeholder = 'kind'; kind.setAttribute('list', 'visit-kinds');
-  const memo = el('input'); memo.type = 'text'; memo.name = 'note'; memo.placeholder = 'memo（何を見たい？）'; memo.spellcheck = false;
+  const memo = el('input'); memo.type = 'text'; memo.name = 'note'; memo.placeholder = 'memo'; memo.spellcheck = false;
   const submit = el('button', 'visit-btn', 'add');
   submit.type = 'submit';
   add.append(place, kind, memo, submit);
