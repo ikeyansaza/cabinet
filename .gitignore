@@ -25,3 +25,6 @@ npm-debug.log
 
 # 3D models（個人データ。リポには含めない）
 *.glb
+
+# brainstorming / SDD 作業ディレクトリ
+.superpowers/

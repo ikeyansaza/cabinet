@@ -66,7 +66,7 @@ pub fn update_photo_species(
     write_atomic(&path, json.as_bytes())
 }
 
-fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     // 同一ディレクトリに一時ファイルを置いてから rename することで、
     // 部分書き込み状態のファイルを watcher / 読み手に見せない
     let tmp = path.with_extension("tmp");

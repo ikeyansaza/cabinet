@@ -6,6 +6,7 @@ mod exif;
 mod scan;
 mod watcher;
 mod edit;
+mod visits;
 
 use std::path::PathBuf;
 use tauri::{Emitter, Manager, State};
@@ -178,6 +179,23 @@ fn update_photo_species(
     edit::update_photo_species(&dir, &file, species.as_deref())
 }
 
+#[tauri::command]
+fn read_visits_json(state: State<'_, AppState>) -> serde_json::Value {
+    match state.parent_dir() {
+        Some(parent) => visits::read_visits(&parent),
+        None => serde_json::json!({ "visits": [], "wishlist": [] }),
+    }
+}
+
+#[tauri::command]
+fn write_visits_json(
+    state: State<'_, AppState>,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    let parent = state.parent_dir().ok_or("parent_dir is not set")?;
+    visits::write_visits(&parent, &value)
+}
+
 /// カテゴリ一覧と前回 active から、今回の active を決める。
 /// - 前回 active が一覧に含まれていればそれを返す
 /// - 含まれていなければ先頭を返す
@@ -336,6 +354,8 @@ pub fn run() {
             write_species_json,
             write_artists_json,
             update_photo_species,
+            read_visits_json,
+            write_visits_json,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
