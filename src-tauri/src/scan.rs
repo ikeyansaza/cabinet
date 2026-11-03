@@ -36,8 +36,15 @@ pub fn scan_and_merge(dir: &Path) -> Vec<Value> {
 
     let path = dir.join("photos.json");
     let json = serde_json::to_string_pretty(&entries).unwrap_or_else(|_| "[]".into());
-    if let Err(e) = std::fs::write(&path, json + "\n") {
-        eprintln!("[album] failed to write {}: {e}", path.display());
+    let json = json + "\n";
+    // 内容が変わらないときは書かない。photos.json は watcher の監視対象なので、
+    // 毎回書くと「書き込み→検知→再スキャン→書き込み」のループになり、
+    // photos-updated が約 500ms ごとに発火して一覧がチカチカする。
+    let unchanged = std::fs::read_to_string(&path).map(|cur| cur == json).unwrap_or(false);
+    if !unchanged {
+        if let Err(e) = std::fs::write(&path, json) {
+            eprintln!("[album] failed to write {}: {e}", path.display());
+        }
     }
 
     entries
@@ -156,6 +163,21 @@ mod tests {
         let e = entries[0].as_object().unwrap();
         assert_eq!(e.get("species").unwrap().as_str(), Some("kingfisher"));
         assert_eq!(e.get("title").unwrap().as_str(), Some("X"));
+    }
+
+    #[test]
+    fn unchanged_rescan_does_not_rewrite_photos_json() {
+        // photos.json の書き込みを watcher が検知して再スキャン→再書き込み…と
+        // 無限ループし、画面がチカチカした。内容が同じなら書かないこと。
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("a.jpg"), b"").unwrap();
+        scan_and_merge(tmp.path());
+        let path = tmp.path().join("photos.json");
+        let before = fs::metadata(&path).unwrap().modified().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        scan_and_merge(tmp.path());
+        let after = fs::metadata(&path).unwrap().modified().unwrap();
+        assert_eq!(before, after);
     }
 
     #[test]
