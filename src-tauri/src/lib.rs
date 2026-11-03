@@ -180,10 +180,10 @@ fn update_photo_species(
 }
 
 #[tauri::command]
-fn read_visits_json(state: State<'_, AppState>) -> serde_json::Value {
+fn read_visits_json(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     match state.parent_dir() {
         Some(parent) => visits::read_visits(&parent),
-        None => serde_json::json!({ "visits": [], "wishlist": [] }),
+        None => Ok(serde_json::json!({ "visits": [], "wishlist": [] })),
     }
 }
 

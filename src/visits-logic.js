@@ -79,20 +79,46 @@ export function linkPhotos(photos, visits) {
   return { byVisit, unassigned };
 }
 
-function smallestUnused(isUsed) {
-  let n = 1;
-  while (isUsed(n)) n += 1;
-  return n;
+const isStr = (s) => typeof s === 'string' && s.length > 0;
+
+/** 手編集された visits.json の 1 件が、描画・保存に耐える形か（id / date / place / kind が必要）。 */
+export function isValidVisit(v) {
+  return !!v && isStr(v.id) && isValidDate(v.date) && isStr(v.place) && isStr(v.kind);
 }
 
-/** `${date}-${n}`（n は未使用の最小の正整数）。場所に依存しないので編集しても id は変わらない。 */
-export function makeVisitId(date, existingIds) {
-  const used = new Set(existingIds);
-  return `${date}-${smallestUnused((n) => used.has(`${date}-${n}`))}`;
+export function isValidWish(w) {
+  return !!w && isStr(w.id) && isStr(w.place) && isStr(w.kind);
 }
 
-/** `w${n}`（n は未使用の最小の正整数）。 */
+/** 配列を pred で valid / invalid に分ける。invalid は捨てず、保存時にそのまま書き戻すために返す。 */
+export function partition(list, pred) {
+  const valid = [];
+  const invalid = [];
+  for (const item of list) (pred(item) ? valid : invalid).push(item);
+  return { valid, invalid };
+}
+
+/**
+ * `${date}-${n}`。n はその日付で既に使われている最大の n + 1。
+ * 歯抜けを埋めない: 削除した訪問の ID を再利用すると、photos.json に残った visit がその ID の
+ * 新しい訪問に勝手に付け替わってしまうため（spec: id は不変）。
+ * referencedIds には写真が参照している ID（既に削除された訪問のものを含む）を渡す。
+ */
+export function makeVisitId(date, existingIds, referencedIds = []) {
+  const prefix = `${date}-`;
+  let max = 0;
+  for (const id of [...existingIds, ...referencedIds]) {
+    if (typeof id !== 'string' || !id.startsWith(prefix)) continue;
+    const n = Number(id.slice(prefix.length));
+    if (Number.isInteger(n) && n > max) max = n;
+  }
+  return `${prefix}${max + 1}`;
+}
+
+/** `w${n}`（n は未使用の最小の正整数）。wishlist の ID は他から参照されないので歯抜けを埋めてよい。 */
 export function makeWishId(existingIds) {
   const used = new Set(existingIds);
-  return `w${smallestUnused((n) => used.has(`w${n}`))}`;
+  let n = 1;
+  while (used.has(`w${n}`)) n += 1;
+  return `w${n}`;
 }

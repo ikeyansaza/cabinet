@@ -889,8 +889,14 @@
     lbEditVisitLabel.hidden = true;
     if (!p.date) return;
     const T = await tauri();
-    const data = await T.invoke('read_visits_json');
-    if (visible[current] !== p) return; // 読み込み中に別の写真へ移った
+    let data;
+    try {
+      data = await T.invoke('read_visits_json');
+    } catch (err) {
+      return; // visits.json が壊れている等。訪問の選択肢は出さない
+    }
+    // 読み込み中に別の写真へ移った（photos-updated で visible が作り直されても file で同一判定する）
+    if (!visible[current] || visible[current].file !== p.file) return;
     const sameDay = ((data && data.visits) || []).filter(v => v.date === p.date);
     if (sameDay.length === 0) return;
 

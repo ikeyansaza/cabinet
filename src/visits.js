@@ -2,6 +2,7 @@
 import { invoke, listen, convertFileSrc } from './tauri.js';
 import {
   groupByYear, kindsOf, linkPhotos, visitsOnDate, isValidDate, makeVisitId, makeWishId,
+  isValidVisit, isValidWish, partition,
 } from './visits-logic.js';
 
 const view = document.getElementById('visits-view');
@@ -18,6 +19,10 @@ const state = {
   armedDeleteId: null, // delete を 1 回押した訪問 ID（2 回目で実行）
   form: null,        // 上部の追加フォーム { initial, submitLabel, onSubmit(values) }。null なら閉じている
   error: '',         // 直近の保存失敗メッセージ
+  readFailed: false, // visits.json が壊れていて読めない（この間は編集させない）
+  skippedVisits: [], // id / date 等が欠けた手編集の訪問。表示せず、保存時にそのまま書き戻す
+  skippedWishes: [],
+  snapshot: '',      // 最後に読んだ visits.json の内容（外部で書き換えられたかの検出用）
 };
 
 /* ── DOM ヘルパ（文字列は必ず textContent で入れる） ── */
@@ -33,7 +38,7 @@ function setMode(mode) {
   document.body.dataset.mode = mode;
   modeButtons.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
   view.hidden = mode !== 'visits';
-  if (mode === 'visits') reload();
+  if (mode === 'visits') { state.error = ''; reload(); }
 }
 
 modeButtons.forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
@@ -50,16 +55,30 @@ async function reload() {
   state.parent = await invoke('get_parent_dir');
   if (!state.parent) {
     state.visits = []; state.wishlist = []; state.photos = [];
+    state.skippedVisits = []; state.skippedWishes = []; state.readFailed = false;
     render();
     return;
   }
-  const [data, photos] = await Promise.all([
-    invoke('read_visits_json'),
-    invoke('read_all_photos'),
-  ]);
-  state.visits = data?.visits || [];
-  state.wishlist = data?.wishlist || [];
-  state.photos = photos || [];
+  try {
+    const [data, photos] = await Promise.all([
+      invoke('read_visits_json'),
+      invoke('read_all_photos'),
+    ]);
+    const v = partition(data?.visits || [], isValidVisit);
+    const w = partition(data?.wishlist || [], isValidWish);
+    state.visits = v.valid;
+    state.wishlist = w.valid;
+    state.skippedVisits = v.invalid;
+    state.skippedWishes = w.invalid;
+    state.photos = photos || [];
+    state.snapshot = JSON.stringify(data);
+    state.readFailed = false;
+  } catch (err) {
+    // visits.json が壊れている等。空として扱って保存すると既存の記録を上書きしてしまうので、編集を止める
+    state.visits = []; state.wishlist = []; state.skippedVisits = []; state.skippedWishes = [];
+    state.readFailed = true;
+    state.error = String(err);
+  }
   render();
 }
 
@@ -69,19 +88,40 @@ listen('photos-updated', () => {
 });
 
 /* ── 保存 ── */
-// state.visits / state.wishlist をそのまま visits.json に書く。失敗したら画面に出してディスクの内容に戻す。
+// state.visits / state.wishlist を visits.json に書く。
+// - 読み込み時に除外した不正な手編集エントリは、そのまま書き戻して失わない。
+// - 最後に読んだ後で visits.json が外部から書き換えられていたら、上書きせず読み直して中止する。
 async function saveVisits() {
   try {
-    await invoke('write_visits_json', { value: { visits: state.visits, wishlist: state.wishlist } });
+    const current = await invoke('read_visits_json');
+    if (JSON.stringify(current) !== state.snapshot) {
+      state.error = 'visits.json が外部で変更されていたので読み直しました。もう一度操作してください';
+      await reload();
+      return false;
+    }
+    await invoke('write_visits_json', {
+      value: {
+        visits: [...state.visits, ...state.skippedVisits],
+        wishlist: [...state.wishlist, ...state.skippedWishes],
+      },
+    });
+    state.snapshot = JSON.stringify(await invoke('read_visits_json'));
     state.error = '';
     render();
     return true;
   } catch (err) {
     state.error = `保存失敗: ${err}`;
-    await reload();
+    try { await reload(); } catch (e) { render(); }
     return false;
   }
 }
+
+// 新しい訪問の ID。写真が参照している ID（削除済みの訪問のものを含む）とも衝突させない
+const newVisitId = (date) => makeVisitId(
+  date,
+  state.visits.concat(state.skippedVisits).map((v) => v.id),
+  state.photos.map((p) => p.visit).filter(Boolean),
+);
 
 const todayLocal = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD（ローカル日付）
 
@@ -170,6 +210,13 @@ function buildVisitForm({ initial, submitLabel, onSubmit, onCancel }) {
   return form;
 }
 
+// 編集で event / note を空にしたら、そのキーを消す（スプレッドで古い値が残らないように）
+function withoutEmpty(entry, values) {
+  if (!values.event) delete entry.event;
+  if (!values.note) delete entry.note;
+  return entry;
+}
+
 // フォームの値 → visits.json の訪問オブジェクト（空の event / note はキーごと省く）
 function toVisit(id, v) {
   return { id, date: v.date, place: v.place, ...(v.event ? { event: v.event } : {}), kind: v.kind, ...(v.note ? { note: v.note } : {}) };
@@ -195,7 +242,8 @@ function renderDetail(visit, linked, unassignedForDate) {
       onCancel: () => { state.editingId = null; render(); },
       onSubmit: async (values) => {
         const i = state.visits.findIndex((x) => x.id === visit.id);
-        if (i >= 0) state.visits[i] = toVisit(visit.id, values); // id は変えない（photos.json から参照されている）
+        // id は変えない（photos.json から参照されている）。フォームに無い手編集のフィールドも残す
+        if (i >= 0) state.visits[i] = withoutEmpty({ ...state.visits[i], ...toVisit(visit.id, values) }, values);
         state.editingId = null;
         await saveVisits();
       },
@@ -312,7 +360,7 @@ function renderWishlist() {
         initial: { date: todayLocal(), place: w.place, kind: w.kind, note: w.note },
         submitLabel: 'add',
         onSubmit: async (values) => {
-          state.visits.push(toVisit(makeVisitId(values.date, state.visits.map((v) => v.id)), values));
+          state.visits.push(toVisit(newVisitId(values.date), values));
           state.wishlist = state.wishlist.filter((x) => x.id !== w.id);
           state.form = null;
           await saveVisits();
@@ -361,6 +409,13 @@ function render() {
   }
 
   if (state.error) view.appendChild(el('div', 'visits-error', state.error));
+  if (state.readFailed) {
+    // 壊れた visits.json を空として扱わない。直すまで編集させない
+    view.appendChild(el('div', 'visits-message', 'visits.json を直してから、もう一度 visits を開いてください'));
+    return;
+  }
+  const skipped = state.skippedVisits.length + state.skippedWishes.length;
+  if (skipped > 0) view.appendChild(el('div', 'visits-error', `${skipped} 件の不正な記録（id / date / place / kind が欠けている）は表示していません。保存してもファイルには残します`));
   view.appendChild(kindsDatalist());
 
   // ツールバー: 種類フィルタ + [ add visit ]
@@ -371,7 +426,7 @@ function render() {
       initial: { date: todayLocal() },
       submitLabel: 'add',
       onSubmit: async (values) => {
-        state.visits.push(toVisit(makeVisitId(values.date, state.visits.map((v) => v.id)), values));
+        state.visits.push(toVisit(newVisitId(values.date), values));
         state.form = null;
         await saveVisits();
       },
