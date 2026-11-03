@@ -6,6 +6,7 @@ mod exif;
 mod scan;
 mod watcher;
 mod edit;
+mod import;
 mod visits;
 
 use std::path::PathBuf;
@@ -144,6 +145,14 @@ fn rescan(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let dir = state.active_dir().ok_or("no active category")?;
     let entries = scan::scan_and_merge(&dir);
     Ok(serde_json::Value::Array(entries))
+}
+
+/// ドロップされた画像をアクティブカテゴリへコピーする。反映はウォッチャーが行う。
+#[tauri::command]
+fn import_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<import::ImportResult, String> {
+    let dir = state.active_dir().ok_or("no active category")?;
+    let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+    Ok(import::import_files(&dir, &paths))
 }
 
 #[tauri::command]
@@ -371,6 +380,7 @@ pub fn run() {
             read_species_json,
             read_artists_json,
             rescan,
+            import_photos,
             get_active_dir,
             write_species_json,
             write_artists_json,

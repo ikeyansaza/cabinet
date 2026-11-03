@@ -25,6 +25,7 @@ album/
 │   │   ├── exif.rs             # EXIF 抽出（kamadak-exif）
 │   │   ├── scan.rs             # フォルダ走査 + photos.json マージ + カテゴリ横断読み込み
 │   │   ├── edit.rs             # species.json / artists.json / photos.json の atomic 書き込み
+│   │   ├── import.rs           # ドロップされた画像をアクティブカテゴリへコピー（同名は _2, _3 …で上書きしない）
 │   │   ├── visits.rs           # visits.json の読み込み（正規化）と atomic 書き込み
 │   │   └── watcher.rs          # ファイルウォッチャー（notify, 500ms デバウンス）
 │   ├── Cargo.toml
@@ -35,6 +36,7 @@ album/
 │   ├── gallery.js
 │   ├── visits.js               # visits ビュー（ES module。gallery.js とは body[data-mode] と CustomEvent で連携）
 │   ├── visits-logic.js         # visits の純粋ロジック（年集計・写真紐付け・ID 採番。node --test でテスト）
+│   ├── artist-logic.js         # 作家入力（名前 or ID）の解決。編集パネルの作家欄で使う（node --test でテスト）
 │   ├── tauri.js                # Tauri API 薄ラッパ
 │   ├── style.css
 │   └── lib/                    # vendor ライブラリ（バンドラ無しの素同梱）
@@ -59,6 +61,8 @@ album/
 | `artists.json` | arts カテゴリのみ。フォルダ内に置く |
 | `visits.json` | parent_dir 直下（カテゴリ内ではない）。訪問記録と行きたい場所 |
 | アプリ状態（parent_dir / current_category / window 位置） | `~/Library/Application Support/com.naofumiikeda.album/` |
+
+写真の追加は、カテゴリフォルダへ直接置くか、アプリのウィンドウ（gallery モード）へ画像をドラッグ&ドロップする（開いているカテゴリにコピーされる）。
 
 カテゴリは parent_dir 直下のサブフォルダで「画像ファイルを 1 枚以上含むもの」が自動列挙される。
 ヘッダーのタブで切替。サブフォルダごとに独立した `species.json` を持つので、動物 / 絵画 / 食事
@@ -127,6 +131,8 @@ album/
 `species.json` のスキーマはカテゴリで分かれる。`photos.json` の `species` フィールドはこのキーを参照する。
 ライトボックスは `current_category` を見てどちらのスキーマで描画するかを判定する。`animals` 以外で
 `arts` 以外のカテゴリ（例: `food`）は当面 animals スキーマと同じレイアウトで描画される。
+ただし編集パネルは `food` だけ専用で、料理名（`name_ja`）と `description` のみ。animals / food の編集パネルは
+species ID 欄に登録済みの種が候補で出て、選ぶとその内容がフォームに読み込まれる。
 
 ### animals カテゴリ
 
@@ -170,9 +176,10 @@ arts では `features`（箇条書き）はライトボックスに描画しな�
 に集約する。animals 側の `features` のみ UI に出る。
 
 `co_artist` を指定すると、ライトボックスに作家ブロックが 2 つ並んで表示される。
-作家マスタ（名前・bio 等）の編集は UI からは行わない方針。`artists.json` を直接編集する
-（watcher が変更を検知して自動でリロードする）。`species.json` 側の `artist` / `co_artist` ID
-の付け替えだけはライトボックスの鉛筆ボタンの編集パネルから行える。
+作家マスタ（bio 等）の編集は UI からは行わない方針。`artists.json` を直接編集する
+（watcher が変更を検知して自動でリロードする）。ライトボックスの鉛筆ボタンの編集パネルでは、作家を**名前**で入力する
+（既存作家は候補から選べる。ID を直接入れても動く）。未登録の名前を入れると `artists.json` に `{name}` だけの作家が
+自動で追加される（ID は名前そのもの。bio などは後から `artists.json` に書き足す）。
 
 ### 共通ルール
 

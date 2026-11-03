@@ -3,6 +3,14 @@ use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 
 const SUPPORTED_EXT: &[&str] = &["jpg", "jpeg", "png", "webp"];
+
+/// 拡張子（大文字小文字不問）がギャラリー対象の画像か。
+pub fn is_supported_image(p: &Path) -> bool {
+    p.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| SUPPORTED_EXT.iter().any(|s| s.eq_ignore_ascii_case(e)))
+        .unwrap_or(false)
+}
 const MANUAL_FIELDS: &[&str] = &["species", "title", "tags", "visit"];
 
 pub fn scan_and_merge(dir: &Path) -> Vec<Value> {
@@ -36,8 +44,15 @@ pub fn scan_and_merge(dir: &Path) -> Vec<Value> {
 
     let path = dir.join("photos.json");
     let json = serde_json::to_string_pretty(&entries).unwrap_or_else(|_| "[]".into());
-    if let Err(e) = std::fs::write(&path, json + "\n") {
-        eprintln!("[album] failed to write {}: {e}", path.display());
+    let json = json + "\n";
+    // 内容が変わらないときは書かない。photos.json は watcher の監視対象なので、
+    // 毎回書くと「書き込み→検知→再スキャン→書き込み」のループになり、
+    // photos-updated が約 500ms ごとに発火して一覧がチカチカする。
+    let unchanged = std::fs::read_to_string(&path).map(|cur| cur == json).unwrap_or(false);
+    if !unchanged {
+        if let Err(e) = std::fs::write(&path, json) {
+            eprintln!("[album] failed to write {}: {e}", path.display());
+        }
     }
 
     entries

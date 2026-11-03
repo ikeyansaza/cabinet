@@ -59,6 +59,7 @@
 
     <!-- visits ビュー（visits.js が描画。body[data-mode="visits"] のときだけ表示） -->
     <section class="visits-view" id="visits-view" hidden aria-label="visits"></section>
+    <div class="import-toast" id="import-toast" hidden role="status" aria-live="polite"></div>
 
   </div>
 
@@ -130,7 +131,13 @@
           </div>
           <div class="lb-edit-fields">
             <label>species ID
-              <input type="text" name="species_id" required spellcheck="false" autocapitalize="off">
+              <input type="text" name="species_id" id="lb-edit-species-id" list="species-options" required spellcheck="false" autocapitalize="off">
+            </label>
+            <!-- 登録済みの種の候補（animals / food のとき gallery.js が中身を入れる。選ぶとフォームに読み込まれる） -->
+            <datalist id="species-options"></datalist>
+            <!-- food 用: 当面は料理名だけ（保存先は species.json の name_ja） -->
+            <label data-mode="food">料理名
+              <input type="text" name="dish_name">
             </label>
             <!-- animals 用 -->
             <label data-mode="animals">name (ja)
@@ -149,13 +156,15 @@
             <label data-mode="arts">title
               <input type="text" name="title">
             </label>
-            <label data-mode="arts">artist ID
-              <input type="text" name="artist" spellcheck="false" autocapitalize="off" placeholder="artists.json のキー">
+            <label data-mode="arts">作家名
+              <input type="text" name="artist" list="artist-options" spellcheck="false" autocomplete="off"
+                placeholder="作家名（新しい名前なら自動で登録）">
             </label>
-            <label data-mode="arts">co-artist ID（共作の相手）
-              <input type="text" name="co_artist" spellcheck="false" autocapitalize="off"
-                placeholder="共作なら artists.json のキー">
+            <label data-mode="arts">共作の相手（作家名）
+              <input type="text" name="co_artist" list="artist-options" spellcheck="false" autocomplete="off"
+                placeholder="共作なら作家名">
             </label>
+            <datalist id="artist-options"></datalist>
             <label data-mode="arts">year
               <input type="text" name="year">
             </label>
@@ -164,7 +173,7 @@
             </label>
             <!-- features は animals のみ（arts は description に集約） -->
             <label data-mode="animals">features
-              <textarea name="features" rows="4" placeholder="1 行 1 項目"></textarea>
+              <textarea name="features" rows="4"></textarea>
             </label>
             <label>description
               <textarea name="description" rows="6"></textarea>
@@ -187,6 +196,7 @@
 
   <script type="module" src="gallery.js"></script>
   <script type="module" src="visits.js"></script>
+  <script type="module" src="import-ui.js"></script>
 </body>
 
 </html>

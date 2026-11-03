@@ -67,6 +67,7 @@
   const lbEdit       = document.getElementById('lb-edit');
   const lbEditPanel  = document.getElementById('lb-edit-panel');
   const lbEditForm   = document.getElementById('lb-edit-form');
+  const lbEditSpeciesId = document.getElementById('lb-edit-species-id');
   const lbEditTitle  = document.getElementById('lb-edit-title');
   const lbEditCancel = document.getElementById('lb-edit-cancel');
   const lbEditClose  = document.getElementById('lb-edit-close');
@@ -249,7 +250,10 @@
 
     T.listen('tauri://drag-drop', async (event) => {
       picker.classList.remove('dragover');
-      if (pickerInFlight) return;
+      // リスナーは一度登録すると残るので、選択画面が見えているときだけ動かす。
+      // そうしないと、通常画面での写真ドロップ（import-ui.js が担当）まで
+      // 「ライブラリのフォルダ指定」として扱われ、フォルダ設定エラーになる。
+      if (picker.hidden || pickerInFlight) return;
       const paths = event.payload?.paths || [];
       const path = paths[0];
       if (path) await chooseFolder(T, path);
@@ -836,18 +840,21 @@
 
   // 現在のカテゴリに応じて表示するモードを返す（既知カテゴリ以外は animals 扱い）
   function editMode() {
-    return currentCategory === 'arts' ? 'arts' : 'animals';
+    if (currentCategory === 'arts') return 'arts';
+    if (currentCategory === 'food') return 'food';
+    return 'animals';
   }
 
   function applyEditFormMode(mode) {
     lbEditPanel.dataset.mode = mode;
-    lbEditTitle.textContent = mode === 'arts' ? 'edit artwork' : 'edit species';
+    lbEditTitle.textContent = { arts: 'edit artwork', food: 'edit dish' }[mode] || 'edit species';
     lbEditPanel.querySelectorAll('label[data-mode]').forEach(label => {
       label.hidden = label.dataset.mode !== mode;
     });
   }
 
-  function openEditPanel() {
+  async function openEditPanel() {
+    const { artistLabel } = await import('./artist-logic.js');
     const p = visible[current];
     if (!p) return;
     const mode = editMode();
@@ -860,13 +867,36 @@
     const f = lbEditForm.elements;
     f.species_id.value = speciesId;
 
+    fillEditFields(mode, sp, artistLabel);
+    // arts の ID は作品ごとなので候補は出さない。animals / food は登録済みの種・料理から選べる
+    if (mode === 'arts') {
+      fillArtistOptions();
+      lbEditSpeciesId.removeAttribute('list');
+    } else {
+      fillSpeciesOptions();
+      lbEditSpeciesId.setAttribute('list', 'species-options');
+    }
+
+    setEditStatus('', null);
+    loadVisitOptions(p);
+    lbEditPanel.hidden = false;
+    if (mode === 'arts') f.title.focus();
+    else if (mode === 'food') f.dish_name.focus();
+    else f.name_ja.focus();
+  }
+
+  /** species エントリの内容を編集フォームへ流し込む（species ID 欄は触らない） */
+  function fillEditFields(mode, sp, artistLabel) {
+    const f = lbEditForm.elements;
     if (mode === 'arts') {
       f.title.value     = sp.title     || '';
-      f.artist.value    = sp.artist    || '';
-      f.co_artist.value = sp.co_artist || '';
+      f.artist.value    = artistLabel(sp.artist, artistsMap);
+      f.co_artist.value = artistLabel(sp.co_artist, artistsMap);
       f.year.value      = sp.year      || '';
       f.medium.value    = sp.medium    || '';
       f.features.value  = '';
+    } else if (mode === 'food') {
+      f.dish_name.value = sp.name_ja || '';
     } else {
       f.name_ja.value  = sp.name_ja || '';
       f.name_en.value  = sp.name_en || '';
@@ -875,13 +905,33 @@
       f.features.value = (sp.features || []).join('\n');
     }
     f.description.value = sp.description || '';
-
-    setEditStatus('', null);
-    loadVisitOptions(p);
-    lbEditPanel.hidden = false;
-    if (mode === 'arts') f.title.focus();
-    else f.name_ja.focus();
   }
+
+  /** 登録済みの種（species.json）を species ID 欄の候補にする。表示名は label に出る */
+  async function fillSpeciesOptions() {
+    const { speciesOptions } = await import('./species-logic.js');
+    const dl = document.getElementById('species-options');
+    dl.replaceChildren();
+    speciesOptions(speciesMap).forEach(({ id, label }) => {
+      const o = document.createElement('option');
+      o.value = id;
+      o.label = label;
+      o.textContent = label;
+      dl.appendChild(o);
+    });
+  }
+
+  // 候補から登録済みの種を選んだら、その内容をフォームに読み込む（以降の保存はその種への編集になる）。
+  // 入力途中の文字列で上書きしないよう、確定時に発火する change で判定する。
+  lbEditSpeciesId.addEventListener('change', () => {
+    const mode = lbEditPanel.dataset.mode;
+    if (mode === 'arts') return;
+    const id = lbEditSpeciesId.value.trim();
+    const sp = speciesMap[id];
+    if (!sp) return; // 未登録の ID は新規作成として扱う（フォームはそのまま）
+    editingOriginalEntry = sp;
+    fillEditFields(mode, sp, () => '');
+  });
 
   // 撮影日と同じ日の訪問を選択肢にする。該当が無ければ select ごと隠す。
   // 同日に訪問が複数ある日は、ここで写真ごとにどの訪問かを選ぶ（visits.json の訪問 ID を photos.json に保存）
@@ -934,6 +984,18 @@
     }
   });
 
+  /** 作家名の入力候補（既存の artists.json の name）を datalist に入れる */
+  function fillArtistOptions() {
+    const dl = document.getElementById('artist-options');
+    dl.replaceChildren();
+    Object.values(artistsMap).forEach((a) => {
+      if (!a || !a.name) return;
+      const o = document.createElement('option');
+      o.value = a.name;
+      dl.appendChild(o);
+    });
+  }
+
   function closeEditPanel() {
     lbEditPanel.hidden = true;
     setEditStatus('', null);
@@ -953,14 +1015,22 @@
     // 元エントリを spread して、フォームに無いフィールド（model 等）を保持
     const entry = { ...editingOriginalEntry };
 
+    // 作家は名前で入力させ、ID への解決と未登録作家の新規登録（artists.json）はここで行う
+    let newArtists = {};
     if (mode === 'arts') {
+      const { planArtistInputs } = await import('./artist-logic.js');
+      const plan = planArtistInputs(f.artist.value, f.co_artist.value, artistsMap);
+      newArtists = plan.newArtists;
       setOrDelete(entry, 'title',     f.title.value.trim());
-      setOrDelete(entry, 'artist',    f.artist.value.trim());
-      setOrDelete(entry, 'co_artist', f.co_artist.value.trim());
+      setOrDelete(entry, 'artist',    plan.artist);
+      setOrDelete(entry, 'co_artist', plan.coArtist);
       setOrDelete(entry, 'year',      f.year.value.trim());
       setOrDelete(entry, 'medium',    f.medium.value.trim());
       // arts では features は使わない & animals 用フィールドが残っていたら掃除
       ['features', 'name_ja', 'name_en', 'habitat', 'size'].forEach(k => delete entry[k]);
+    } else if (mode === 'food') {
+      // food は当面 料理名（name_ja）と説明だけ。フォームに無いフィールドは元のまま残す
+      setOrDelete(entry, 'name_ja', f.dish_name.value.trim());
     } else {
       setOrDelete(entry, 'name_ja', f.name_ja.value.trim());
       setOrDelete(entry, 'name_en', f.name_en.value.trim());
@@ -986,6 +1056,17 @@
     setEditStatus('saving...', null);
     try {
       const T = await tauri();
+      // 新しい作家を先に artists.json へ（species.json が参照する ID が先に存在する順）。
+      // あわせて、どこからも参照されなくなった自動登録の作家（「モネ」→「クロード・モネ」に
+      // 直した後の古い「モネ」など）を掃除する。
+      if (mode === 'arts') {
+        const { pruneUnusedStubs } = await import('./artist-logic.js');
+        const nextArtists = pruneUnusedStubs({ ...artistsMap, ...newArtists }, newSpeciesMap);
+        if (JSON.stringify(nextArtists) !== JSON.stringify(artistsMap)) {
+          await T.invoke('write_artists_json', { value: nextArtists });
+          artistsMap = nextArtists;
+        }
+      }
       await T.invoke('write_species_json', { value: newSpeciesMap });
       // 写真側のリンクが変わる場合のみ書き戻す（同一 ID の説明文だけ編集なら photos.json は触らない）
       if (p.species !== speciesId) {

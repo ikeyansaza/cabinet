@@ -1129,3 +1129,32 @@ body[data-mode="gallery"] .visits-view { display: none; }
   margin-bottom: 20px;
   border-bottom: 1px solid var(--border);
 }
+
+/* --- 画像ドロップ取り込み（import-ui.js） --- */
+.import-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-hi);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.import-toast[hidden] { display: none; }
+.import-toast[data-kind="ok"] { border-color: var(--ok); }
+.import-toast[data-kind="warn"] { border-color: var(--err); }
+
+/* ファイルを重ねている間、ウィンドウ全体に枠を出す（クリックは透過） */
+body.dragging-files::after {
+  content: '';
+  position: fixed;
+  inset: 8px;
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 60;
+}
