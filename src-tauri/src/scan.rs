@@ -3,7 +3,7 @@ use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 
 const SUPPORTED_EXT: &[&str] = &["jpg", "jpeg", "png", "webp"];
-const MANUAL_FIELDS: &[&str] = &["species", "title", "tags"];
+const MANUAL_FIELDS: &[&str] = &["species", "title", "tags", "visit"];
 
 pub fn scan_and_merge(dir: &Path) -> Vec<Value> {
     let existing = load_existing(dir);
@@ -97,6 +97,37 @@ fn has_images(dir: &Path) -> bool {
         })
 }
 
+/// parent 直下のカテゴリ名を実在するディレクトリに解決する。
+/// フロントから来た文字列をそのままパスに繋ぐので、区切り文字や `..` を含む名前は拒否する（パストラバーサル防止）。
+pub fn category_dir(parent: &Path, category: &str) -> Result<PathBuf, String> {
+    if category.is_empty() || category.contains('/') || category.contains('\\') || category.contains("..") {
+        return Err(format!("invalid category: {category}"));
+    }
+    let dir = parent.join(category);
+    if !dir.is_dir() {
+        return Err(format!("not a category: {category}"));
+    }
+    Ok(dir)
+}
+
+/// 全カテゴリの photos.json を読み、各要素に `category` を足して連結する。
+/// 読めない／配列でないカテゴリは飛ばす（visits の写真集計で他カテゴリを巻き込まないため）。
+pub fn read_all_photos(parent: &Path) -> Vec<Value> {
+    let mut all = Vec::new();
+    for category in list_categories(parent) {
+        let path = parent.join(&category).join("photos.json");
+        let Ok(text) = std::fs::read_to_string(&path) else { continue; };
+        let Ok(Value::Array(arr)) = serde_json::from_str::<Value>(&text) else { continue; };
+        for mut entry in arr {
+            if let Some(obj) = entry.as_object_mut() {
+                obj.insert("category".into(), Value::String(category.clone()));
+                all.push(entry);
+            }
+        }
+    }
+    all
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,5 +200,49 @@ mod tests {
         }
         let cats = list_categories(tmp.path());
         assert_eq!(cats, vec!["animals".to_string(), "food".to_string()]);
+    }
+
+    #[test]
+    fn preserves_visit_field() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("a.jpg"), b"").unwrap();
+        fs::write(
+            tmp.path().join("photos.json"),
+            r#"[{"file":"a.jpg","visit":"2025-10-12-1"}]"#,
+        )
+        .unwrap();
+        let entries = scan_and_merge(tmp.path());
+        assert_eq!(entries[0].get("visit").unwrap().as_str(), Some("2025-10-12-1"));
+    }
+
+    #[test]
+    fn category_dir_rejects_traversal() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir(tmp.path().join("animals")).unwrap();
+        assert!(category_dir(tmp.path(), "../x").is_err());
+        assert!(category_dir(tmp.path(), "a/b").is_err());
+        assert!(category_dir(tmp.path(), "a\\b").is_err());
+        assert!(category_dir(tmp.path(), "").is_err());
+        assert!(category_dir(tmp.path(), "missing").is_err());
+        assert_eq!(category_dir(tmp.path(), "animals").unwrap(), tmp.path().join("animals"));
+    }
+
+    #[test]
+    fn read_all_photos_tags_category() {
+        let tmp = TempDir::new().unwrap();
+        for (cat, json) in [
+            ("animals", r#"[{"file":"a.jpg"}]"#),
+            ("arts", r#"[{"file":"b.jpg"},{"file":"c.jpg"}]"#),
+            ("food", "not json"),
+        ] {
+            fs::create_dir(tmp.path().join(cat)).unwrap();
+            fs::write(tmp.path().join(cat).join("x.jpg"), b"").unwrap();
+            fs::write(tmp.path().join(cat).join("photos.json"), json).unwrap();
+        }
+        let all = read_all_photos(tmp.path());
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0]["category"].as_str(), Some("animals"));
+        assert_eq!(all[0]["file"].as_str(), Some("a.jpg"));
+        assert_eq!(all[2]["category"].as_str(), Some("arts"));
     }
 }

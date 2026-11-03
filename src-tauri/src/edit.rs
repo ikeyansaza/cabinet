@@ -32,6 +32,24 @@ pub fn update_photo_species(
     file: &str,
     species: Option<&str>,
 ) -> Result<(), String> {
+    update_photo_field(dir, file, "species", species)
+}
+
+/// photos.json 内の指定 file の visit（訪問 ID）を上書き。挙動は update_photo_species と同じ。
+pub fn update_photo_visit(
+    dir: &Path,
+    file: &str,
+    visit: Option<&str>,
+) -> Result<(), String> {
+    update_photo_field(dir, file, "visit", visit)
+}
+
+fn update_photo_field(
+    dir: &Path,
+    file: &str,
+    key: &str,
+    value_str: Option<&str>,
+) -> Result<(), String> {
     let path = dir.join("photos.json");
     let text = std::fs::read_to_string(&path)
         .map_err(|e| format!("failed to read photos.json: {e}"))?;
@@ -48,12 +66,12 @@ pub fn update_photo_species(
             continue;
         }
         found = true;
-        match species {
+        match value_str {
             Some(s) if !s.is_empty() => {
-                obj.insert("species".into(), Value::String(s.into()));
+                obj.insert(key.into(), Value::String(s.into()));
             }
             _ => {
-                obj.remove("species");
+                obj.remove(key);
             }
         }
     }
@@ -208,5 +226,33 @@ mod tests {
     fn missing_photos_json_returns_error() {
         let tmp = TempDir::new().unwrap();
         assert!(update_photo_species(tmp.path(), "a.jpg", Some("foo")).is_err());
+    }
+
+    #[test]
+    fn sets_photo_visit() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("photos.json"), r#"[{"file":"a.jpg"},{"file":"b.jpg","visit":"old"}]"#).unwrap();
+        update_photo_visit(tmp.path(), "a.jpg", Some("2025-10-12-1")).unwrap();
+        let v: Value = serde_json::from_str(&fs::read_to_string(tmp.path().join("photos.json")).unwrap()).unwrap();
+        assert_eq!(v[0]["visit"].as_str(), Some("2025-10-12-1"));
+        assert_eq!(v[1]["visit"].as_str(), Some("old"));
+    }
+
+    #[test]
+    fn empty_visit_removes_field() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("photos.json"), r#"[{"file":"a.jpg","visit":"old"}]"#).unwrap();
+        update_photo_visit(tmp.path(), "a.jpg", Some("")).unwrap();
+        let v: Value = serde_json::from_str(&fs::read_to_string(tmp.path().join("photos.json")).unwrap()).unwrap();
+        assert!(v[0].get("visit").is_none());
+    }
+
+    #[test]
+    fn unknown_file_visit_is_noop() {
+        let tmp = TempDir::new().unwrap();
+        let original = r#"[{"file":"a.jpg"}]"#;
+        fs::write(tmp.path().join("photos.json"), original).unwrap();
+        update_photo_visit(tmp.path(), "b.jpg", Some("x")).unwrap();
+        assert_eq!(fs::read_to_string(tmp.path().join("photos.json")).unwrap(), original);
     }
 }

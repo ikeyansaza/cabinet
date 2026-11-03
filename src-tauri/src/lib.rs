@@ -196,6 +196,27 @@ fn write_visits_json(
     visits::write_visits(&parent, &value)
 }
 
+#[tauri::command]
+fn read_all_photos(state: State<'_, AppState>) -> serde_json::Value {
+    match state.parent_dir() {
+        Some(parent) => serde_json::Value::Array(scan::read_all_photos(&parent)),
+        None => serde_json::Value::Array(vec![]),
+    }
+}
+
+/// 訪問の手動選択結果を、その写真が属するカテゴリの photos.json に書く（アクティブカテゴリに限定しない）。
+#[tauri::command]
+fn update_photo_visit(
+    state: State<'_, AppState>,
+    category: String,
+    file: String,
+    visit: Option<String>,
+) -> Result<(), String> {
+    let parent = state.parent_dir().ok_or("parent_dir is not set")?;
+    let dir = scan::category_dir(&parent, &category)?;
+    edit::update_photo_visit(&dir, &file, visit.as_deref())
+}
+
 /// カテゴリ一覧と前回 active から、今回の active を決める。
 /// - 前回 active が一覧に含まれていればそれを返す
 /// - 含まれていなければ先頭を返す
@@ -356,6 +377,8 @@ pub fn run() {
             update_photo_species,
             read_visits_json,
             write_visits_json,
+            read_all_photos,
+            update_photo_visit,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
