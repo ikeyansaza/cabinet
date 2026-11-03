@@ -1098,6 +1098,7 @@
   function setEditStatus(msg, ok) {
     lbEditStatus.textContent = msg;
     lbEditStatus.classList.toggle('ok', ok === true);
+    lbEditStatus.classList.toggle('err', ok === false);
   }
 
   function slugifyFilename(file) {

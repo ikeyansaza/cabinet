@@ -851,12 +851,14 @@ button.tag.active {
 .lb-edit-status {
   padding: 0 16px;
   font-size: 10px;
-  color: var(--err);
+  color: var(--text);
   letter-spacing: .04em;
   min-height: 14px;
 }
 
-.lb-edit-status.ok { color: var(--ok); }
+/* 既定（saving... など進行中）は中立色。成功は緑、失敗だけ赤 */
+.lb-edit-status.ok  { color: var(--ok); }
+.lb-edit-status.err { color: var(--err); }
 
 .lb-edit-actions {
   display: flex;
