@@ -1109,3 +1109,20 @@ body[data-mode="gallery"] .visits-view { display: none; }
   width: 200px;
 }
 .visits-next-add input:focus { outline: none; border-color: var(--accent); }
+
+/* ── next: 行きたい場所のメモ ── */
+.wish-note { font-size: 11px; color: var(--text); margin-top: 3px; line-height: 1.5; white-space: pre-wrap; }
+.wish-note-form { display: flex; gap: 8px; margin-top: 4px; }
+.wish-note-form input {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-hi);
+  border-radius: 3px;
+  flex: 1;
+  max-width: 420px;
+}
+.wish-note-form input:focus { outline: none; border-color: var(--accent); }
+.visits-next-add input[name="note"] { width: 260px; }

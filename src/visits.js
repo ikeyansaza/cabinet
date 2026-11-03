@@ -17,6 +17,7 @@ const state = {
   openId: null,      // 詳細を展開中の訪問 ID
   editingId: null,   // 編集フォームを開いている訪問 ID
   armedDeleteId: null, // delete を 1 回押した訪問 ID（2 回目で実行）
+  editingWishNoteId: null, // メモを編集中の行きたい場所 ID
   form: null,        // 上部の追加フォーム { initial, submitLabel, onSubmit(values) }。null なら閉じている
   error: '',         // 直近の保存失敗メッセージ
   readFailed: false, // visits.json が壊れていて読めない（この間は編集させない）
@@ -40,7 +41,7 @@ function setMode(mode) {
   view.hidden = mode === 'gallery';
   if (mode !== 'gallery') {
     // 追加フォームや削除確認は、モードをまたいで持ち越さない
-    state.error = ''; state.form = null; state.openId = null; state.editingId = null; state.armedDeleteId = null;
+    state.error = ''; state.form = null; state.openId = null; state.editingId = null; state.armedDeleteId = null; state.editingWishNoteId = null;
     reload();
   }
 }
@@ -354,10 +355,34 @@ function renderWishlist() {
     const row = el('div', 'visit-row visit-row-static');
     row.appendChild(el('span', 'visit-date', '·'));
     const main = el('span', 'visit-place', w.place);
-    if (w.note) main.appendChild(el('span', 'visit-event', ` · ${w.note}`));
+    if (state.editingWishNoteId === w.id) {
+      // 「何を見たいか」などのメモをその場で編集（Enter か save で保存、空にすると note を消す）
+      const form = el('form', 'wish-note-form');
+      const input = el('input');
+      input.type = 'text';
+      input.value = w.note || '';
+      input.placeholder = '何を見たい？';
+      input.spellcheck = false;
+      form.append(input, button('cancel', () => { state.editingWishNoteId = null; render(); }));
+      const save = el('button', 'visit-btn visit-btn-primary', 'save');
+      save.type = 'submit';
+      form.appendChild(save);
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const next = input.value.trim();
+        if (next) w.note = next; else delete w.note;
+        state.editingWishNoteId = null;
+        await saveVisits();
+      });
+      main.appendChild(form);
+      setTimeout(() => input.focus(), 0);
+    } else if (w.note) {
+      main.appendChild(el('div', 'wish-note', w.note));
+    }
     row.appendChild(main);
     row.appendChild(el('span', 'visit-kind', w.kind));
     const actions = el('span', 'visit-actions');
+    actions.appendChild(button('memo', () => { state.editingWishNoteId = w.id; state.armedDeleteId = null; render(); }));
     actions.appendChild(button('[ visited ]', () => {
       // 訪問フォームを place / kind 事前入力・日付は今日で開く。保存したときだけ 1 回の書き込みで昇格する
       state.form = {
@@ -389,15 +414,17 @@ function renderWishlist() {
   add.autocomplete = 'off';
   const place = el('input'); place.type = 'text'; place.name = 'place'; place.placeholder = 'place'; place.spellcheck = false;
   const kind = el('input'); kind.type = 'text'; kind.name = 'kind'; kind.placeholder = 'kind'; kind.setAttribute('list', 'visit-kinds');
+  const memo = el('input'); memo.type = 'text'; memo.name = 'note'; memo.placeholder = 'memo（何を見たい？）'; memo.spellcheck = false;
   const submit = el('button', 'visit-btn', 'add');
   submit.type = 'submit';
-  add.append(place, kind, submit);
+  add.append(place, kind, memo, submit);
   add.addEventListener('submit', async (e) => {
     e.preventDefault();
     const p = place.value.trim();
     const k = kind.value.trim();
     if (!p || !k) return; // 両方そろうまで何もしない
-    state.wishlist.push({ id: makeWishId(state.wishlist.map((w) => w.id)), place: p, kind: k });
+    const note = memo.value.trim();
+    state.wishlist.push({ id: makeWishId(state.wishlist.map((w) => w.id)), place: p, kind: k, ...(note ? { note } : {}) });
     await saveVisits();
   });
   section.appendChild(add);
