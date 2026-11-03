@@ -1,6 +1,8 @@
 // visits.js — 訪問記録ビュー。gallery.js とは body[data-mode] と CustomEvent だけで連携する。
-import { invoke, listen } from './tauri.js';
-import { groupByYear, kindsOf, linkPhotos } from './visits-logic.js';
+import { invoke, listen, convertFileSrc } from './tauri.js';
+import {
+  groupByYear, kindsOf, linkPhotos, visitsOnDate, isValidDate, makeVisitId,
+} from './visits-logic.js';
 
 const view = document.getElementById('visits-view');
 const modeButtons = document.querySelectorAll('#mode-toggle .mode-btn');
@@ -11,6 +13,11 @@ const state = {
   photos: [],
   kind: 'all',   // 種類フィルタ
   parent: null,  // parent_dir（未設定なら null）
+  openId: null,      // 詳細を展開中の訪問 ID
+  editingId: null,   // 編集フォームを開いている訪問 ID
+  armedDeleteId: null, // delete を 1 回押した訪問 ID（2 回目で実行）
+  form: null,        // 上部の追加フォーム { initial, submitLabel, onSubmit(values) }。null なら閉じている
+  error: '',         // 直近の保存失敗メッセージ
 };
 
 /* ── DOM ヘルパ（文字列は必ず textContent で入れる） ── */
@@ -61,6 +68,23 @@ listen('photos-updated', () => {
   if (document.body.dataset.mode === 'visits') reload();
 });
 
+/* ── 保存 ── */
+// state.visits / state.wishlist をそのまま visits.json に書く。失敗したら画面に出してディスクの内容に戻す。
+async function saveVisits() {
+  try {
+    await invoke('write_visits_json', { value: { visits: state.visits, wishlist: state.wishlist } });
+    state.error = '';
+    render();
+    return true;
+  } catch (err) {
+    state.error = `保存失敗: ${err}`;
+    await reload();
+    return false;
+  }
+}
+
+const todayLocal = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD（ローカル日付）
+
 /* ── 描画 ── */
 function summaryText(s) {
   const kinds = Object.entries(s.byKind)
@@ -84,8 +108,175 @@ function renderFilters() {
   return bar;
 }
 
-function renderRow(visit, photoCount) {
+function button(label, onClick, className = 'visit-btn') {
+  const b = el('button', className, label);
+  b.type = 'button';
+  b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+  return b;
+}
+
+/* ── フォーム（追加・編集・「行った」で共用） ── */
+function buildVisitForm({ initial, submitLabel, onSubmit, onCancel }) {
+  const form = el('form', 'visit-form');
+  form.autocomplete = 'off';
+  const fields = {};
+
+  const field = (name, label, node) => {
+    const wrap = el('label', null, label);
+    node.name = name;
+    wrap.appendChild(node);
+    form.appendChild(wrap);
+    fields[name] = node;
+  };
+  const input = (value) => { const i = el('input'); i.type = 'text'; i.value = value || ''; i.spellcheck = false; return i; };
+
+  field('date', 'date (YYYY-MM-DD)', input(initial.date));
+  field('place', 'place', input(initial.place));
+  field('event', 'event', input(initial.event));
+  const kind = input(initial.kind);
+  kind.setAttribute('list', 'visit-kinds');
+  field('kind', 'kind', kind);
+  const note = el('textarea');
+  note.rows = 3;
+  note.value = initial.note || '';
+  field('note', 'note', note);
+
+  const datalist = el('datalist');
+  datalist.id = 'visit-kinds';
+  kindsOf(state.visits).forEach((k) => { const o = el('option'); o.value = k; datalist.appendChild(o); });
+  form.appendChild(datalist);
+
+  const status = el('div', 'visit-form-status');
+  form.appendChild(status);
+
+  const actions = el('div', 'visit-form-actions');
+  actions.appendChild(button('cancel', onCancel));
+  const submit = el('button', 'visit-btn visit-btn-primary', submitLabel);
+  submit.type = 'submit';
+  actions.appendChild(submit);
+  form.appendChild(actions);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const values = {
+      date: fields.date.value.trim(),
+      place: fields.place.value.trim(),
+      event: fields.event.value.trim(),
+      kind: fields.kind.value.trim(),
+      note: fields.note.value.trim(),
+    };
+    if (!isValidDate(values.date)) { status.textContent = '日付は YYYY-MM-DD で入力してください'; return; }
+    if (!values.place) { status.textContent = 'place を入力してください'; return; }
+    if (!values.kind) { status.textContent = 'kind を入力してください'; return; }
+    submit.disabled = true;
+    await onSubmit(values);
+    submit.disabled = false;
+  });
+  return form;
+}
+
+// フォームの値 → visits.json の訪問オブジェクト（空の event / note はキーごと省く）
+function toVisit(id, v) {
+  return { id, date: v.date, place: v.place, ...(v.event ? { event: v.event } : {}), kind: v.kind, ...(v.note ? { note: v.note } : {}) };
+}
+
+/* ── 詳細（行の下に展開） ── */
+function thumb(photo) {
+  const img = el('img', 'visit-thumb');
+  img.loading = 'lazy';
+  img.alt = photo.file;
+  img.src = convertFileSrc(`${state.parent}/${photo.category}/${photo.file}`);
+  img.addEventListener('click', (e) => { e.stopPropagation(); openPhoto(photo.category, photo.file); });
+  return img;
+}
+
+function renderDetail(visit, linked, unassignedForDate) {
+  const box = el('div', 'visit-detail');
+
+  if (state.editingId === visit.id) {
+    box.appendChild(buildVisitForm({
+      initial: visit,
+      submitLabel: 'save',
+      onCancel: () => { state.editingId = null; render(); },
+      onSubmit: async (values) => {
+        const i = state.visits.findIndex((x) => x.id === visit.id);
+        if (i >= 0) state.visits[i] = toVisit(visit.id, values); // id は変えない（photos.json から参照されている）
+        state.editingId = null;
+        await saveVisits();
+      },
+    }));
+    return box;
+  }
+
+  // メモ（空にしたら note キーごと削除）
+  const note = el('textarea', 'visit-note');
+  note.rows = 2;
+  note.placeholder = 'memo';
+  note.value = visit.note || '';
+  const saveNote = async () => {
+    const next = note.value.trim();
+    if (next === (visit.note || '')) return;
+    if (next) visit.note = next; else delete visit.note;
+    await saveVisits();
+  };
+  note.addEventListener('click', (e) => e.stopPropagation());
+  note.addEventListener('change', saveNote);
+  box.appendChild(note);
+
+  if (linked.length > 0) {
+    const row = el('div', 'visit-photos');
+    linked.forEach((p) => row.appendChild(thumb(p)));
+    box.appendChild(row);
+  }
+
+  // 同日に複数の訪問がある日の、まだどの訪問にも割り当てていない写真
+  if (unassignedForDate && unassignedForDate.length > 0) {
+    box.appendChild(el('div', 'visit-sub', 'この日の未割り当て写真'));
+    const row = el('div', 'visit-photos');
+    const candidates = visitsOnDate(state.visits, visit.date);
+    unassignedForDate.forEach((p) => {
+      const cell = el('div', 'visit-unassigned');
+      cell.appendChild(thumb(p));
+      const sel = el('select');
+      sel.appendChild(Object.assign(el('option', null, '—'), { value: '' }));
+      candidates.forEach((c) => {
+        sel.appendChild(Object.assign(el('option', null, c.event ? `${c.place} · ${c.event}` : c.place), { value: c.id }));
+      });
+      sel.addEventListener('click', (e) => e.stopPropagation());
+      sel.addEventListener('change', async () => {
+        if (!sel.value) return;
+        try {
+          await invoke('update_photo_visit', { category: p.category, file: p.file, visit: sel.value });
+          await reload();
+        } catch (err) {
+          state.error = `保存失敗: ${err}`;
+          render();
+        }
+      });
+      cell.appendChild(sel);
+      row.appendChild(cell);
+    });
+    box.appendChild(row);
+  }
+
+  const actions = el('div', 'visit-actions');
+  actions.appendChild(button('edit', () => { state.editingId = visit.id; state.armedDeleteId = null; render(); }));
+  const armed = state.armedDeleteId === visit.id;
+  actions.appendChild(button(armed ? 'really delete?' : 'delete', async () => {
+    if (!armed) { state.armedDeleteId = visit.id; render(); return; }
+    // 写真側の visit は書き換えない。存在しない ID を指す visit は linkPhotos が無視する（spec §9）
+    state.visits = state.visits.filter((x) => x.id !== visit.id);
+    state.openId = null;
+    state.armedDeleteId = null;
+    await saveVisits();
+  }));
+  box.appendChild(actions);
+  return box;
+}
+
+function renderRow(visit, photoCount, onToggle) {
   const row = el('div', 'visit-row');
+  row.addEventListener('click', onToggle);
   row.appendChild(el('span', 'visit-date', visit.date.slice(5).replace('-', '/')));
   const main = el('span', 'visit-place', visit.place);
   if (visit.event) main.appendChild(el('span', 'visit-event', ` · ${visit.event}`));
@@ -103,14 +294,39 @@ function render() {
     view.appendChild(el('div', 'visits-message', 'フォルダを先に選択してください'));
     return;
   }
+
+  if (state.error) view.appendChild(el('div', 'visits-error', state.error));
+
+  // ツールバー: 種類フィルタ + [ add visit ]
+  const toolbar = el('div', 'visits-toolbar');
+  toolbar.appendChild(renderFilters());
+  toolbar.appendChild(button('[ add visit ]', () => {
+    state.form = {
+      initial: { date: todayLocal() },
+      submitLabel: 'add',
+      onSubmit: async (values) => {
+        state.visits.push(toVisit(makeVisitId(values.date, state.visits.map((v) => v.id)), values));
+        state.form = null;
+        await saveVisits();
+      },
+    };
+    render();
+  }));
+  view.appendChild(toolbar);
+
+  if (state.form) {
+    view.appendChild(buildVisitForm({
+      ...state.form,
+      onCancel: () => { state.form = null; render(); },
+    }));
+  }
+
   if (state.visits.length === 0) {
     view.appendChild(el('div', 'visits-message', 'まだ訪問記録がありません'));
     return;
   }
 
-  view.appendChild(renderFilters());
-
-  const { byVisit } = linkPhotos(state.photos, state.visits);
+  const { byVisit, unassigned } = linkPhotos(state.photos, state.visits);
   const groups = groupByYear(state.visits, state.kind);
   if (groups.length === 0) {
     view.appendChild(el('div', 'visits-message', 'この種類の訪問はありません'));
@@ -123,7 +339,14 @@ function render() {
     head.appendChild(el('span', 'visits-year-summary', summaryText(g.summary)));
     section.appendChild(head);
     for (const v of g.visits) {
-      section.appendChild(renderRow(v, (byVisit.get(v.id) || []).length));
+      const linked = byVisit.get(v.id) || [];
+      section.appendChild(renderRow(v, linked.length, () => {
+        state.openId = state.openId === v.id ? null : v.id;
+        state.editingId = null;
+        state.armedDeleteId = null;
+        render();
+      }));
+      if (state.openId === v.id) section.appendChild(renderDetail(v, linked, unassigned.get(v.date)));
     }
     view.appendChild(section);
   }

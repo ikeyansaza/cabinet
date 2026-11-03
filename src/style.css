@@ -989,3 +989,100 @@ body:not([data-mode="visits"]) .visits-view { display: none; }
   letter-spacing: .06em;
   padding: 40px 0;
 }
+
+/* ── visits: toolbar / 詳細 / フォーム ── */
+.visits-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.visits-toolbar .visits-filters { margin-bottom: 0; }
+
+.visits-error {
+  color: var(--err);
+  font-size: 11px;
+  letter-spacing: .04em;
+  margin-bottom: 12px;
+}
+
+.visit-btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 2px;
+  letter-spacing: .06em;
+  transition: border-color .15s, color .15s;
+}
+.visit-btn:hover { border-color: var(--accent); color: var(--accent); }
+.visit-btn-primary { border-color: var(--accent); color: var(--accent); }
+.visit-btn:disabled { opacity: .5; cursor: default; }
+
+.visit-detail {
+  padding: 10px 4px 14px 70px;
+  border-bottom: 1px solid var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.visit-note,
+.visit-form input,
+.visit-form textarea,
+.visit-unassigned select {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-hi);
+  border-radius: 3px;
+  letter-spacing: .04em;
+  transition: border-color .15s;
+}
+.visit-note { width: 100%; max-width: 520px; resize: vertical; }
+.visit-note:focus,
+.visit-form input:focus,
+.visit-form textarea:focus,
+.visit-unassigned select:focus { outline: none; border-color: var(--accent); }
+
+.visit-photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.visit-thumb {
+  height: 72px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  display: block;
+}
+.visit-thumb:hover { border-color: var(--accent); }
+.visit-sub { font-size: 10px; color: var(--dim); letter-spacing: .1em; }
+.visit-unassigned { display: flex; flex-direction: column; gap: 4px; }
+.visit-unassigned select { padding: 2px 4px; font-size: 10px; max-width: 160px; }
+.visit-actions { display: flex; gap: 8px; }
+
+.visit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 460px;
+  padding: 12px 0 16px;
+}
+.visit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 9px;
+  color: var(--dim);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.visit-form input,
+.visit-form textarea { text-transform: none; }
+.visit-form textarea { resize: vertical; }
+.visit-form-status { color: var(--err); font-size: 10px; min-height: 14px; letter-spacing: .04em; }
+.visit-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
